@@ -1,0 +1,17 @@
+name: Optimist
+description: >-
+  The optimist drives laps of a road that forks in two lanes, with food in the upper lane. Once
+  it has learned the road, at each fork it imagines both lanes, one after the other, and takes
+  the one that leads to food, which it cannot sense from there.
+
+world: ../worlds/fork-road.yaml
+
+vehicles:
+  - vehicle:
+      definition: ../vehicles/vehicle14-optimist.yaml
+      position: [90, 20]           # in the stem
+      heading: 0
+
+simulation:
+  dt: 0.01
+  seed: 0

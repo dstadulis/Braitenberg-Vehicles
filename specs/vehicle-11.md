@@ -44,7 +44,7 @@ An Ergotrix connection is a learning connection ([vehicle-definition.md](vehicle
 
 The rule works on **onsets**, the moments when something turns on, because a sequence is a matter of what starts first. For a connection from a source `S` to a unit `D`:
 
-- **The source turns on** when `S`'s output is 1 this step and was 0 the step before.
+- **The source turns on** when `S`'s output is 1 this step and was 0 the step before. Since Vehicle 14 ([vehicle-14.md](vehicle-14.md), *Thoughts are not events*), only the part of that output that `S`'s fixed inputs explain counts: a source that a learned wire alone brings on, a thought, does not turn on. For a source with no learning inputs, as every source in this spec, that is its output.
 - **The destination is driven by its fixed inputs** when the sum of `D`'s active inputs that do not learn, computed as for its activation, reaches `D`'s threshold. This leaves out this connection and every other learning connection into `D`. **It turns on** when it is true this step and was false the step before.
 
 Each connection is either **waiting** or not; it starts not waiting. Each step:

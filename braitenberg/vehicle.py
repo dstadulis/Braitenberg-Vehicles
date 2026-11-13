@@ -99,8 +99,9 @@ class Vehicle:
         # starts from its definition's strengths and learns on its own; the definition never changes.
         self.strengths = {(u.name, j): c.strength for u in definition.units
                           for j, c in enumerate(u.inputs) if c.learning}
-        # Each Ergotrix connection's memory from step to step: its source's output and whether its
-        # unit was driven by its fixed inputs at the last step, and the steps left in its wait.
+        # Each Ergotrix connection's memory from step to step: its source's output, as far as the
+        # source's fixed inputs explain it, and whether its unit was driven by its fixed inputs at
+        # the last step, and the steps left in its wait.
         self.ergotrix = {(u.name, j): {"source": 0.0, "driven": False, "wait": 0}
                          for u in definition.units for j, c in enumerate(u.inputs)
                          if c.learning and c.learning.type == "ergotrix"}
@@ -153,6 +154,10 @@ class Vehicle:
         # Activations on their way to becoming outputs: a unit's output is its activation
         # `steps` steps ago (zero before that).
         self.activations = np.zeros((int(steps.max(initial=0)) + 1, len(units)))
+        # The same for what each unit's fixed inputs alone would make of it: an Ergotrix wire's
+        # source turns on only when its fixed inputs turn it on (specs/vehicle-14.md).
+        self.fixed_activations = np.zeros_like(self.activations)
+        self.fixed_outputs = np.zeros(len(units))
         # Recent values of every signal, for the simultaneity windows; -inf where none yet.
         self.window = int(steps.max(initial=1))
         self.history = np.full((self.window, len(names)), -np.inf)
@@ -182,6 +187,7 @@ class Vehicle:
             self.window_reads.append((np.arange(n), columns, members, where))
         self.input_first = first   # index of each unit's first input
         self.input_active = np.array([c.active for u in units for c in u.inputs], dtype=bool)
+        self.input_learns = np.array([bool(c.learning) for u in units for c in u.inputs], dtype=bool)
         # Learning inputs: (unit position, input index within the unit).
         self.learning_inputs = [(k, j) for k, u in enumerate(units)
                                 for j, c in enumerate(u.inputs) if c.learning]
@@ -231,6 +237,9 @@ class Vehicle:
         n_units = len(self.unit_names)
         outputs = self.activations[(self.t - self.steps) % len(self.activations), np.arange(n_units)]
         self.unit_outputs = dict(zip(self.unit_names, outputs.tolist()))
+        if self.ergotrix:
+            self.fixed_outputs = self.fixed_activations[(self.t - self.steps) % len(self.activations),
+                                                        np.arange(n_units)]
         signals = np.concatenate([np.fromiter(values.values(), float, len(values)), outputs])
         self.history[self.t % self.window] = signals
         for k, j in self.learning_inputs:   # active or not by their strength at the start of the step
@@ -243,6 +252,11 @@ class Vehicle:
         contributions = np.where(self.input_active, self.input_sign * inputs, 0.0)
         sums = np.bincount(self.input_unit, contributions, minlength=n_units)
         activations = (sums >= self.effective(outputs)).astype(float)
+        if self.ergotrix:
+            fixed_sums = np.bincount(self.input_unit, np.where(self.input_learns, 0.0, contributions),
+                                     minlength=n_units)
+            self.fixed_activations[self.t % len(self.activations)] = \
+                (fixed_sums >= self.effective_thresholds).astype(float)
         if self.is_control.any():
             # A control adds up the activations of the units it watches, just computed, and
             # sensor outputs: it sees an ignition as it starts. Its activation is its new offset,
@@ -295,7 +309,9 @@ class Vehicle:
         c, memory = u.inputs[j], self.ergotrix[(u.name, j)]
         fixed = sum(x for i, x in enumerate(contributions.tolist()) if not u.inputs[i].learning)
         driven = fixed >= u.threshold
-        source = self.unit_outputs[c.source]
+        # The source turns on when its fixed inputs turn it on: a thought, which a learned wire
+        # brings on, is not an event to learn from (specs/vehicle-14.md).
+        source = self.fixed_outputs[self.unit_names.index(c.source)]
         turns_on, driven_on = source > 0 and memory["source"] <= 0, driven and not memory["driven"]
         memory["source"], memory["driven"] = source, driven
         strength = None

@@ -1,0 +1,364 @@
+general:
+  type: "14"
+  name: Optimist (goes where it imagines food)
+  description: >-
+    Drives laps of a road that forks in two lanes. At first it takes either lane, and learns which
+    follow the fork and which leads to food. Then, at each fork, it holds the moment, imagines one
+    lane at a time, and takes the first one that its built-in evaluator finds pleasing: it heads
+    for food that no sense can reach from there, even when the food is not there.
+  size: 4
+  height: 2
+  noise_std: 0.3
+
+sensors:
+  - sensor:
+      name: fork_eye                # the fork post, while it is ahead
+      type: yellow
+      position: [0, 0.9]
+      field_of_view: 60
+  - sensor:
+      name: blue_eye                # the upper lane's mark
+      type: blue
+      position: [-0.3, 0.9]
+  - sensor:
+      name: red_eye                 # the lower lane's mark
+      type: red
+      position: [0.3, 0.9]
+  - sensor:
+      name: nose
+      type: food
+      position: [-0.9, 0.9]
+  - sensor:
+      name: ir_left                 # looks to the side, at the wall on the left
+      type: proximity
+      position: [-0.6, 0.9]
+      direction: 90
+      field_of_view: 180
+  - sensor:
+      name: ir_right
+      type: proximity
+      position: [0.6, 0.9]
+      direction: -90
+      field_of_view: 180
+
+units:
+  # R: what it senses.
+  - unit:
+      name: at_fork                 # the fork post ahead, within about 16 units
+      type: threshold
+      threshold: 2
+      position: [0, 0.72]
+      inputs:
+        - input:
+            from: fork_eye
+  - unit:
+      name: in_upper                # entering the upper lane
+      type: threshold
+      threshold: 5
+      position: [-0.45, 0.72]
+      inputs:
+        - input:
+            from: blue_eye
+  - unit:
+      name: in_lower                # entering the lower lane
+      type: threshold
+      threshold: 5
+      position: [0.45, 0.72]
+      inputs:
+        - input:
+            from: red_eye
+  - unit:
+      name: smells                  # food within about 5 units
+      type: threshold
+      threshold: 4
+      position: [-0.85, 0.72]
+      inputs:
+        - input:
+            from: nose
+
+  # P: what it predicts. A lane is predicted from the fork only while it is looked at; what
+  # it senses counts three times, so being in a lane fires its unit whatever it thinks.
+  - unit:
+      name: p_fork                  # at the fork, or still deciding what to do there
+      type: threshold
+      threshold: 1
+      position: [0, 0.56]
+      inputs:
+        - input:
+            from: at_fork
+        - input:
+            from: deciding
+  - unit:
+      name: p_upper
+      type: threshold
+      threshold: 2
+      delay: 0.1
+      position: [-0.45, 0.42]
+      inputs:
+        - input:
+            from: in_upper
+        - input:
+            from: in_upper
+        - input:
+            from: in_upper
+        - input:
+            from: look_upper
+        - input:
+            from: p_lower
+            type: inhibitory
+        - input:
+            from: p_fork
+            strength: 0
+            learning:
+              type: ergotrix
+              within: 10              # the post to a lane takes about 8 s
+              learn: 0.4
+              forget: 0.05
+  - unit:
+      name: p_lower
+      type: threshold
+      threshold: 2
+      delay: 0.1
+      position: [0.45, 0.42]
+      inputs:
+        - input:
+            from: in_lower
+        - input:
+            from: in_lower
+        - input:
+            from: in_lower
+        - input:
+            from: look_lower
+        - input:
+            from: p_upper
+            type: inhibitory
+        - input:
+            from: p_fork
+            strength: 0
+            learning:
+              type: ergotrix
+              within: 10
+              learn: 0.4
+              forget: 0.05
+  - unit:
+      name: p_food                  # food, or a lane that leads to it
+      type: threshold
+      threshold: 1
+      position: [-0.85, 0.3]
+      inputs:
+        - input:
+            from: smells
+        - input:
+            from: p_upper
+            strength: 0
+            learning:
+              type: ergotrix
+              within: 5               # a look at the fork expires before the lane is reached
+              learn: 0.4
+              forget: 0.1
+        - input:
+            from: p_lower
+            strength: 0
+            learning:
+              type: ergotrix
+              within: 5
+              learn: 0.4
+              forget: 0.1
+
+  # Hold and scan: from the fork until it has chosen, the predictor looks at one lane at a time.
+  - unit:
+      name: deciding
+      type: threshold
+      threshold: 1
+      position: [0, 0.12]
+      inputs:
+        - input:
+            from: at_fork
+        - input:
+            from: deciding
+        - input:
+            from: go_upper
+            type: inhibitory
+        - input:
+            from: go_lower
+            type: inhibitory
+        - input:
+            from: in_upper
+            type: inhibitory
+        - input:
+            from: in_lower
+            type: inhibitory
+  - unit:
+      name: phase                   # on and off by turns while deciding
+      type: threshold
+      threshold: 1
+      delay: 0.5
+      position: [0, -0.1]
+      inputs:
+        - input:
+            from: deciding
+        - input:
+            from: phase
+            type: inhibitory
+  - unit:
+      name: look_upper
+      type: threshold
+      threshold: 2
+      position: [-0.3, 0.12]
+      inputs:
+        - input:
+            from: deciding
+        - input:
+            from: phase
+  - unit:
+      name: look_lower
+      type: threshold
+      threshold: 1
+      position: [0.3, 0.12]
+      inputs:
+        - input:
+            from: deciding
+        - input:
+            from: phase
+            type: inhibitory
+
+  # D, the evaluator: food is good. It scores an onset, a pulse as food comes to mind.
+  - unit:
+      name: pleasing_was
+      type: threshold
+      threshold: 1
+      position: [-0.85, 0.12]
+      inputs:
+        - input:
+            from: p_food
+  - unit:
+      name: pleasing
+      type: threshold
+      threshold: 1
+      position: [-0.75, -0.12]
+      inputs:
+        - input:
+            from: p_food
+        - input:
+            from: pleasing_was
+            type: inhibitory
+
+  # The choice: the lane being looked at when food comes to mind, enacted until it is reached.
+  - unit:
+      name: choose_upper
+      type: threshold
+      threshold: 3
+      position: [-0.45, -0.3]
+      inputs:
+        - input:
+            from: p_upper
+        - input:
+            from: look_upper
+        - input:
+            from: pleasing
+  - unit:
+      name: choose_lower
+      type: threshold
+      threshold: 3
+      position: [0.45, -0.3]
+      inputs:
+        - input:
+            from: p_lower
+        - input:
+            from: look_lower
+        - input:
+            from: pleasing
+  - unit:
+      name: go_upper
+      type: threshold
+      threshold: 1
+      position: [-0.45, -0.5]
+      inputs:
+        - input:
+            from: choose_upper
+        - input:
+            from: go_upper
+        - input:
+            from: in_upper
+            type: inhibitory
+        - input:
+            from: in_lower
+            type: inhibitory
+        - input:
+            from: went_upper
+            type: inhibitory
+  - unit:
+      name: go_lower
+      type: threshold
+      threshold: 1
+      position: [0.45, -0.5]
+      inputs:
+        - input:
+            from: choose_lower
+        - input:
+            from: go_lower
+        - input:
+            from: in_upper
+            type: inhibitory
+        - input:
+            from: in_lower
+            type: inhibitory
+        - input:
+            from: went_lower
+            type: inhibitory
+  # A turn lasts at most 1.5 s: enough to head into the lane, not to turn round.
+  - unit:
+      name: went_upper
+      type: threshold
+      threshold: 1
+      delay: 1.5
+      position: [-0.8, -0.6]
+      inputs:
+        - input:
+            from: go_upper
+  - unit:
+      name: went_lower
+      type: threshold
+      threshold: 1
+      delay: 1.5
+      position: [0.8, -0.6]
+      inputs:
+        - input:
+            from: go_lower
+
+actuators:
+  # Drives at 3 and keeps to the middle of the road: a wall close on the left speeds up the left
+  # wheel, which turns it away to the right.
+  # go_upper, counted twice, slows the left wheel, which turns it left, toward the upper lane.
+  - actuator:
+      name: left_motor
+      type: motor
+      position: [-0.5, -0.8]
+      base_speed: 3
+      gain: 1
+      max_speed: 10
+      inputs:
+        - input:
+            from: go_upper
+            type: inhibitory
+        - input:
+            from: go_upper
+            type: inhibitory
+        - input:
+            from: ir_left
+  - actuator:
+      name: right_motor
+      type: motor
+      position: [0.5, -0.8]
+      base_speed: 3
+      gain: 1
+      max_speed: 10
+      inputs:
+        - input:
+            from: go_lower
+            type: inhibitory
+        - input:
+            from: go_lower
+            type: inhibitory
+        - input:
+            from: ir_right

@@ -1,0 +1,16 @@
+name: Optimist, food moved
+description: >-
+  The optimist on the fork road, with the food moved from the upper lane to the lower one at 160 s.
+  Its optimism fails for a few laps, it goes back to chance, and it learns the new way.
+
+world: ../worlds/fork-road-moved.yaml
+
+vehicles:
+  - vehicle:
+      definition: ../vehicles/vehicle14-optimist.yaml
+      position: [90, 20]           # in the stem
+      heading: 0
+
+simulation:
+  dt: 0.01
+  seed: 1

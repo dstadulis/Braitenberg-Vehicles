@@ -109,6 +109,26 @@ python -m braitenberg scenarios/vehicle13-once-bitten.yaml
 
 See [specs/vehicle-13.md](specs/vehicle-13.md) for the circuit and its timing.
 
+### Vehicle 14 — An optimist, which goes where it imagines food
+
+![The optimist takes either lane at first; once it has learned, at each fork it imagines both and turns toward the one with food](specs/images/vehicle14-optimist.gif)
+
+A road forks in two lanes, and food lies in the upper one, out of reach of every sense at the fork. At first the optimist takes either lane, and Ergotrix wires learn that the fork is followed by the lanes, and the upper lane by food. Then, at each fork, it does what Braitenberg gives his last vehicle: it holds the moment, imagines one lane at a time, and a built-in evaluator, for which food is good, scores each. It takes the first lane that pleases, and the thought, enacted, turns it toward food it cannot sense, even on the laps when the food is not there. When the food moves to the other lane, its optimism fails a few times, it goes back to chance, and soon it learns the new way. A control whose evaluator is never pleased learns the same, but eats about half as often.
+
+```
+python -m braitenberg scenarios/vehicle14-optimist.yaml
+```
+
+In a second scenario the food moves to the lower lane at 160 s:
+
+![The food moves to the lower lane: the optimist visits the empty upper lane four times, goes back to chance, and then turns down at every fork](specs/images/vehicle14-optimist-moved.gif)
+
+```
+python -m braitenberg scenarios/vehicle14-optimist-moved.yaml
+```
+
+See [specs/vehicle-14.md](specs/vehicle-14.md) for the circuit, and for the change to the Ergotrix rule that keeps thoughts from erasing what the vehicle knows.
+
 ## Running
 
 ### Setup
@@ -147,6 +167,7 @@ Each example is a scenario in `scenarios/`. Run it with `python -m braitenberg` 
 | Vehicle 12: Flooded and silent | The daydreamer's ideas without the control: all on, or none | `python -m braitenberg scenarios/vehicle12-daydreamer-flooded.yaml` |
 | Vehicle 12: Distracted dreamer | Thinks through a dim lamp; a bright one stops its thoughts and draws it in | `python -m braitenberg scenarios/vehicle12-distracted.yaml` |
 | Vehicle 13: Once bitten | Rammed once, relives it while upset, and from then on runs from every green vehicle | `python -m braitenberg scenarios/vehicle13-once-bitten.yaml` |
+| Vehicle 14: Optimist | At a fork, imagines each lane in turn and takes the one that leads to food it cannot sense | `python -m braitenberg scenarios/vehicle14-optimist.yaml` |
 
 In the window:
 
