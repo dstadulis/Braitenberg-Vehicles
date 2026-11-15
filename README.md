@@ -127,7 +127,15 @@ In a second scenario the food moves to the lower lane at 160 s:
 python -m braitenberg scenarios/vehicle14-optimist-moved.yaml
 ```
 
-See [specs/vehicle-14.md](specs/vehicle-14.md) for the circuit, and for the change to the Ergotrix rule that keeps thoughts from erasing what the vehicle knows.
+The second Vehicle 14 example is Braitenberg's impatient vehicle. It waits in a pen for a carrier that brings something sweet once a lap, and taps it when it passes. Once it has learned that the carrier comes back and brings food, it imagines it coming while it waits, finds that pleasing, and acts it out: every few seconds it taps at nothing, as we run to the door before the bell rings. The carrier comes at the same times all the same.
+
+![The impatient vehicle taps the carrier as it passes, and, once it has learned, taps at nothing while it waits](specs/images/vehicle14-impatient.gif)
+
+```
+python -m braitenberg scenarios/vehicle14-impatient.yaml
+```
+
+See [specs/vehicle-14.md](specs/vehicle-14.md) for the circuits, and for the change to the Ergotrix rule that keeps thoughts from erasing what the vehicle knows.
 
 ## Running
 
@@ -168,6 +176,7 @@ Each example is a scenario in `scenarios/`. Run it with `python -m braitenberg` 
 | Vehicle 12: Distracted dreamer | Thinks through a dim lamp; a bright one stops its thoughts and draws it in | `python -m braitenberg scenarios/vehicle12-distracted.yaml` |
 | Vehicle 13: Once bitten | Rammed once, relives it while upset, and from then on runs from every green vehicle | `python -m braitenberg scenarios/vehicle13-once-bitten.yaml` |
 | Vehicle 14: Optimist | At a fork, imagines each lane in turn and takes the one that leads to food it cannot sense | `python -m braitenberg scenarios/vehicle14-optimist.yaml` |
+| Vehicle 14: Impatient | Waiting for a carrier that brings food, taps at nothing now and then, as if that could hasten it | `python -m braitenberg scenarios/vehicle14-impatient.yaml` |
 
 In the window:
 

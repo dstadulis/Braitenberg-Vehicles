@@ -333,3 +333,142 @@ def test_food_moves_in_the_second_scenario():
     assert upper.position[1] > 20 > lower.position[1]
     assert upper.active(100) and not lower.active(100)
     assert lower.active(200) and not upper.active(200)
+
+
+# The impatient vehicle (specs/vehicle-14.md, *Second example: the impatient vehicle*)
+
+IMPATIENT = REPO / "vehicles" / "vehicle14-impatient.yaml"
+DOORSTEP = REPO / "scenarios" / "vehicle14-impatient.yaml"
+COMES_BACK = ("p_wait", "p_carrier")
+BRINGS_FOOD = ("p_carrier", "p_fed")
+WAITING_UNITS = ("carrier", "fed", "go_tap", "tapping")
+
+
+@lru_cache(maxsize=None)
+def wait(control=False, seconds=SECONDS):
+    """Per step: time, the two wires' strengths, the outputs of WAITING_UNITS, and the vehicle's
+    place and heading."""
+    s = load_scenario(DOORSTEP)
+    if control:
+        pleasing = next(u for u in s.vehicles[0].definition.units if u.name == "pleasing")
+        pleasing.inputs = [c for c in pleasing.inputs if c.source != "p_fed"]
+    sim = Simulation(s)
+    v = sim.vehicles[0]
+    n = round(seconds / DT)
+    out = {u: np.empty(n, dtype=bool) for u in WAITING_UNITS}
+    wires = {w: np.empty(n) for w in (COMES_BACK, BRINGS_FOOD)}
+    place = np.empty((n, 3))
+    for k in range(n):
+        sim.step()
+        for u in WAITING_UNITS:
+            out[u][k] = v.unit_outputs[u] > 0
+        for w in wires:
+            wires[w][k] = v.strength(*w)
+        place[k] = v.x, v.y, np.degrees(v.heading)
+    return out, wires, place
+
+
+def rises(x):
+    return list(np.flatnonzero(x[1:] & ~x[:-1]) + 1)
+
+
+# I1. Learns that the carrier comes back and brings food
+@pytest.mark.slow
+def test_impatient_learns_before_it_taps_at_nothing():
+    out, wires, _ = wait()
+    passes = rises(out["carrier"])
+    learned = max(int(np.flatnonzero(wires[w] > 0.7)[0]) for w in wires)
+    assert learned < passes[2]
+    assert not out["go_tap"][:learned].any()
+
+
+# I2. Taps at nothing while it waits
+@pytest.mark.slow
+def test_impatient_taps_while_it_waits():
+    out, _, _ = wait()
+    passes = rises(out["carrier"])
+    assert not (out["go_tap"] & out["carrier"]).any()
+    taps = rises(out["go_tap"])
+    for a, b in zip(passes[2:], passes[3:]):
+        assert sum(a < k < b for k in taps) >= 3
+
+
+# I3. Tapping does not bring the carrier sooner
+@pytest.mark.slow
+def test_tapping_does_not_hasten_the_carrier():
+    impatient, _, _ = wait()
+    control, _, _ = wait(control=True)
+    a, b = rises(impatient["carrier"]), rises(control["carrier"])
+    assert len(a) == len(b) and all(abs(x - y) * DT <= 0.2 for x, y in zip(a, b))
+    assert len(rises(impatient["fed"])) == len(rises(control["fed"]))
+    assert not control["go_tap"].any()
+
+
+# I4. It stays in its pen, facing the path
+@pytest.mark.slow
+def test_impatient_stays_in_its_pen():
+    _, _, place = wait()
+    x, y, heading = place.T
+    assert ((45 < x) & (x < 55) & (17 < y) & (y < 26)).all()
+    assert (np.abs((heading - 90 + 180) % 360 - 180) < 15).all()
+
+
+# I5. Its thoughts do not teach it otherwise
+@pytest.mark.slow
+def test_taps_at_nothing_do_not_unlearn():
+    _, wires, _ = wait()
+    learned = int(np.flatnonzero(wires[BRINGS_FOOD] > 0.7)[0])
+    assert (wires[BRINGS_FOOD][learned:] > 0.7).all()
+    assert (wires[COMES_BACK][learned:] > 0.7).all()
+
+
+# I6. The circuit
+def impatient(strengths=()):
+    v = Vehicle(load_definition(IMPATIENT), 50, 21, np.pi / 2, dt=DT)
+    for (source, unit), s in dict(strengths).items():
+        k = next(j for j, c in enumerate(v.definition.units[v.unit_names.index(unit)].inputs)
+                 if c.source == source and c.learning)
+        v.strengths[(unit, k)] = s
+    return v
+
+
+EMPTY = {"eye": np.zeros((1, 9)), "door_left": 1.0, "door_right": 1.0}
+
+
+def watch(v, seconds, forced=lambda t: {}):
+    rng = np.random.default_rng(0)
+    seen = {u: [] for u in v.unit_names}
+    for n in range(round(seconds / DT)):
+        force(v, forced(n * DT))
+        v.step(EMPTY, DT, rng)
+        for u in v.unit_names:
+            seen[u].append(v.unit_outputs[u] > 0)
+    return {u: np.array(x) for u, x in seen.items()}
+
+
+def test_imagines_the_carrier_and_taps():
+    seen = watch(impatient({COMES_BACK: 1.0, BRINGS_FOOD: 1.0}), 20)
+    taps = rises(seen["go_tap"])
+    assert len(taps) >= 2
+    for k in taps:
+        assert seen["look"][k - 20:k].any()
+        end = k + int(np.argmin(seen["go_tap"][k:]))
+        assert 1.3 <= (end - k) * DT <= 1.8
+    assert seen["tap_left"].any() and seen["tap_right"].any()
+    assert not (seen["tap_left"] & seen["tap_right"]).any()
+
+
+def test_without_food_in_mind_it_does_not_tap():
+    for strengths in ({COMES_BACK: 1.0}, {BRINGS_FOOD: 1.0}, {}):
+        seen = watch(impatient(strengths), 20)
+        assert not seen["go_tap"].any() and not seen["tapping"].any()
+
+
+def test_impatient_runs_without_pygame():
+    result = run_python(
+        "import sys\n"
+        "from braitenberg.scenario import load_scenario\n"
+        "from braitenberg.sim import Simulation\n"
+        "Simulation(load_scenario('scenarios/vehicle14-impatient.yaml')).run(100)\n"
+        "assert 'pygame' not in sys.modules\n")
+    assert result.returncode == 0, result.stderr

@@ -1,0 +1,302 @@
+general:
+  type: "14"
+  name: Impatient (taps before the carrier comes)
+  description: >-
+    Waits in a pen behind a low fence for a carrier that brings something sweet once a lap. When
+    the carrier is in front of it, it taps it, wiggling from side to side, and is fed. It learns
+    that the carrier comes back and that it brings food. Then, while it waits, it imagines the
+    carrier coming, finds it pleasing, and acts it out: every now and then it taps at nothing, as
+    if that could make the carrier come sooner.
+  size: 4
+  height: 2
+  noise_std: 0
+
+appearance:
+  sweet: 0
+
+sensors:
+  - sensor:
+      name: eye                     # the carrier, in front of the pen
+      type: sweet
+      position: [0, 0.9]
+      field_of_view: 90
+      camera:
+        columns: 9                  # 10 degrees each
+        rows: 1
+        vertical_field_of_view: 10
+        height: 1
+        range: 12
+      response:
+        type: step                  # lit where the carrier covers a tenth of a pixel or more
+        at: 1
+  - sensor:
+      name: door_left               # the door light, a little to the left
+      type: door
+      position: [-0.5, 0.9]
+      direction: 30
+      field_of_view: 60
+  - sensor:
+      name: door_right
+      type: door
+      position: [0.5, 0.9]
+      direction: -30
+      field_of_view: 60
+
+units:
+  # R: what it senses, and what it gets.
+  - unit:
+      name: carrier                 # the carrier is in front of the pen
+      type: threshold
+      threshold: 1
+      delay: 0.5                    # long enough to bridge a flicker at the edge of the view
+      position: [0, 0.72]
+      inputs:
+        - input:
+            from: eye[0, :]
+  - unit:
+      name: fed                     # tapping the carrier: it is fed, a moment later
+      type: threshold
+      threshold: 2
+      delay: 0.5
+      position: [-0.85, 0.72]
+      inputs:
+        - input:
+            from: carrier
+        - input:
+            from: tapping
+  - unit:
+      name: waiting                 # no carrier
+      type: threshold
+      threshold: 0
+      position: [0.85, 0.72]
+      inputs:
+        - input:
+            from: carrier
+            type: inhibitory
+
+  # P: what it predicts. The carrier is predicted from waiting only while it is looked at.
+  - unit:
+      name: p_wait
+      type: threshold
+      threshold: 1
+      position: [0.85, 0.42]
+      inputs:
+        - input:
+            from: waiting
+  - unit:
+      name: p_carrier
+      type: threshold
+      threshold: 2
+      delay: 0.1
+      position: [0.2, 0.42]
+      inputs:
+        - input:
+            from: carrier
+        - input:
+            from: carrier
+        - input:
+            from: look
+        - input:
+            from: p_wait
+            strength: 0
+            learning:
+              type: ergotrix
+              within: 60              # longer than a lap of the carrier
+              learn: 0.4
+              forget: 0.05
+  - unit:
+      name: p_fed
+      type: threshold
+      threshold: 1
+      position: [-0.85, 0.42]
+      inputs:
+        - input:
+            from: fed
+        - input:
+            from: p_carrier
+            strength: 0
+            learning:
+              type: ergotrix
+              within: 5
+              learn: 0.4
+              forget: 0.1
+
+  # Hold and scan: while it waits, it looks now and then at the carrier coming.
+  - unit:
+      name: phase
+      type: threshold
+      threshold: 1
+      delay: 3
+      position: [0.75, 0.12]
+      inputs:
+        - input:
+            from: waiting
+        - input:
+            from: phase
+            type: inhibitory
+  - unit:
+      name: look
+      type: threshold
+      threshold: 2
+      position: [0.4, 0.12]
+      inputs:
+        - input:
+            from: waiting
+        - input:
+            from: phase
+
+  # D, the evaluator: being fed is good. A pulse as food comes to mind.
+  - unit:
+      name: pleasing_was
+      type: threshold
+      threshold: 1
+      position: [-0.85, 0.12]
+      inputs:
+        - input:
+            from: p_fed
+  - unit:
+      name: pleasing
+      type: threshold
+      threshold: 1
+      position: [-0.6, -0.08]
+      inputs:
+        - input:
+            from: p_fed
+        - input:
+            from: pleasing_was
+            type: inhibitory
+
+  # The choice: the carrier, looked at, has just led to food. The thought is acted out.
+  - unit:
+      name: choose
+      type: threshold
+      threshold: 3
+      position: [-0.2, -0.15]
+      inputs:
+        - input:
+            from: p_carrier
+        - input:
+            from: look
+        - input:
+            from: pleasing
+  - unit:
+      name: go_tap
+      type: threshold
+      threshold: 1
+      position: [-0.2, -0.38]
+      inputs:
+        - input:
+            from: choose
+        - input:
+            from: go_tap
+        - input:
+            from: went_tap
+            type: inhibitory
+        - input:
+            from: carrier
+            type: inhibitory
+  - unit:
+      name: went_tap                # a tap at nothing lasts 1.5 s
+      type: threshold
+      threshold: 1
+      delay: 1.5
+      position: [-0.6, -0.38]
+      inputs:
+        - input:
+            from: go_tap
+
+  # Tapping: wiggling from side to side, when the carrier is there or when it is imagined.
+  - unit:
+      name: tapping
+      type: threshold
+      threshold: 1
+      position: [0.2, -0.38]
+      inputs:
+        - input:
+            from: carrier
+        - input:
+            from: go_tap
+  - unit:
+      name: beat
+      type: threshold
+      threshold: 1
+      delay: 0.25
+      position: [0.55, -0.45]
+      inputs:
+        - input:
+            from: tapping
+        - input:
+            from: beat
+            type: inhibitory
+  - unit:
+      name: tap_left
+      type: threshold
+      threshold: 2
+      position: [-0.3, -0.62]
+      inputs:
+        - input:
+            from: tapping
+        - input:
+            from: beat
+  - unit:
+      name: tap_right
+      type: threshold
+      threshold: 1
+      position: [0.3, -0.62]
+      inputs:
+        - input:
+            from: tapping
+        - input:
+            from: beat
+            type: inhibitory
+
+  # Facing the door: when the door light is more to one side, turn toward it.
+  - unit:
+      name: face_left
+      type: threshold
+      threshold: 0.5
+      position: [-0.4, 0.72]
+      inputs:
+        - input:
+            from: door_left
+        - input:
+            from: door_right
+            type: inhibitory
+  - unit:
+      name: face_right
+      type: threshold
+      threshold: 0.5
+      position: [0.4, 0.72]
+      inputs:
+        - input:
+            from: door_right
+        - input:
+            from: door_left
+            type: inhibitory
+
+actuators:
+  # Still, unless it taps: then one wheel and the other by turns.
+  - actuator:
+      name: left_motor
+      type: motor
+      position: [-0.5, -0.8]
+      base_speed: 0
+      gain: 2
+      max_speed: 2
+      inputs:
+        - input:
+            from: tap_left
+        - input:
+            from: face_right
+  - actuator:
+      name: right_motor
+      type: motor
+      position: [0.5, -0.8]
+      base_speed: 0
+      gain: 2
+      max_speed: 2
+      inputs:
+        - input:
+            from: tap_right
+        - input:
+            from: face_left

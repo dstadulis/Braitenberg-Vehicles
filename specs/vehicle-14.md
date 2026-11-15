@@ -1,6 +1,6 @@
-# Vehicle 14 — Egotism and Optimism: the optimist
+# Vehicle 14 — Egotism and Optimism: the optimist and the impatient vehicle
 
-**Status:** implemented. The values below were tuned on seeds 0 to 4; *Implementation notes* says what implementing it changed from the first version of this spec.
+**Status:** implemented: the optimist (tuned on seeds 0 to 4; *Implementation notes* says what implementing it changed from the first version of this spec) and a second example, the impatient vehicle (see *Second example: the impatient vehicle*).
 
 ![The optimist takes either lane at first; once it has learned, at each fork it imagines both and turns toward the one with food](images/vehicle14-optimist.gif)
 
@@ -25,6 +25,8 @@ Vehicle 14 gets one rule: **when choosing among several equally likely next brai
 The brain's states include the vehicle's own movements, so choosing a pleasing thought means doing what leads to it. "While dreaming and sleepwalking, the vehicle transforms the world (and its own position in the world)" so that the world ends up in a more favorable state. From outside, the vehicle moves with consistent determination, always after something that the observer cannot guess at the outset, and that may not even be there when it arrives. Most of the time the chain of optimistic predictions proves right, and Vehicle 14 reaches goals that Vehicle 13 "couldn't even dream of".
 
 This spec builds that rule into one vehicle, the **optimist**, on a looping road that forks in two lanes. Food is in the upper lane, out of reach of every sense at the fork. At first the optimist takes either lane, as chance has it, and learns two things: that the fork is followed by the upper lane, and that the upper lane is followed by food. From then on, at each fork it imagines both lanes, one after the other, finds that one of them leads to food, and takes it. It keeps doing so on the laps when the food is not there. When the food moves to the other lane, its optimism fails a few times, it goes back to chance, and soon it learns the new way.
+
+A second example, the **impatient vehicle** (see *Second example: the impatient vehicle*), acts out Braitenberg's other scene: waiting for a vehicle that brings food, it taps now and then at nothing, as if that could make it come sooner.
 
 It needs no new kind of part, but one change to the Ergotrix rule: a wire's source turns on, for learning, only when its fixed inputs turn it on, so that a thought is not taken for an event (see *Thoughts are not events*).
 
@@ -232,6 +234,93 @@ python -m braitenberg scenarios/vehicle14-optimist-moved.yaml
 python -m braitenberg.record scenarios/vehicle14-optimist-moved.yaml --seconds 300 --every 0.4 --speed 16 --scale 0.5 --out specs/images/vehicle14-optimist-moved.gif
 ```
 
+## Second example: the impatient vehicle
+
+![The impatient vehicle taps the carrier as it passes; once it has learned, it taps at nothing every few seconds while it waits](images/vehicle14-impatient.gif)
+
+*`scenarios/vehicle14-impatient.yaml`, first 170 seconds (played at eight times the speed). The pen is the small box at the bottom; the carrier circles above it. In the panel, watch `go_tap` light up while the carrier is away, from about 70 s on.*
+
+Braitenberg's other scene: a Vehicle 14 waits for another vehicle to appear, which carries a very appealing source that it means to tap. It seems impatient: every now and then it performs the motions of tapping, as if anticipating its own behavior could hasten the event. "This is very human", we say, like running to the door long before the bell rings for a beloved friend. It is aberrant behavior, dictated by a very subjective law of causality, and it reflects a basic attitude: an irrational belief in the effectiveness of one's own actions.
+
+In the optimist, a pleasing thought is acted out as the lane it chooses, and the world then makes it come true. The impatient vehicle acts out a pleasing thought that the world does not follow: it imagines the carrier arriving, and does what it does when the carrier is there.
+
+### The world
+
+`worlds/doorstep.yaml`: an open field 100 × 100 with `edges: wrap`, and a small **pen**, x 45 to 55 and y 17 to 25.5: a back wall and two side walls, height 2, and in front a **fence** only 0.6 high, over which a camera 1 high sees. All four are black for `sweet`.
+
+| Stimulus | Sources | Meaning |
+|---|---|---|
+| `sweet` | none | The carrier's color, seen by cameras only |
+| `door` | `[50, 47]`, intensity 10, falloff 30 | A faint light in the middle of the carrier's circle, which the pen faces |
+
+### The carrier
+
+`vehicles/vehicle14-carrier.yaml`: a box 4 × 4, `height` 2, `appearance` `sweet: 10`, no sensors and no noise. Its left wheel runs at 2 and its right at 2.25, so it drives a circle of radius 17 round `[50, 47]`, in about 50 s. Once a lap it passes about 4 units in front of the fence, and the impatient vehicle sees it for about 9 s. It knows nothing of the pen: nothing the impatient vehicle does changes when it comes.
+
+### The impatient vehicle
+
+`vehicles/vehicle14-impatient.yaml`: `size` 4, `height` 2, `noise_std` 0, `appearance` `sweet: 0`.
+
+- **Sensors:** `eye`, a camera at `[0, 0.9]` reading `sweet`, `field_of_view` 90, 9 columns and 1 row, `vertical_field_of_view` 10, `height` 1, `range` 12, `response: {type: step, at: 1}`: the carrier in front of the pen. `door_left` and `door_right` at `[∓0.5, 0.9]`, reading `door`, `direction` ±30, `field_of_view` 60.
+- **Motors:** `base_speed` 0, `gain` 2, `max_speed` 2: it stays still unless it taps or turns.
+
+| Group | Unit | Inputs | Threshold | Delay | Fires when |
+|---|---|---|---|---|---|
+| R | `carrier` | `eye[0, :]` | 1 | 0.5 | the carrier is in front of the pen; the delay bridges a flicker at the edge of the view |
+| | `fed` | `carrier`, `tapping` | 2 | 0.5 | it taps the carrier: it is fed, a moment later |
+| | `waiting` | inhibitory `carrier` | 0 | 0.05 | no carrier |
+| P | `p_wait` | `waiting` | 1 | 0.05 | waiting |
+| | `p_carrier` | `carrier` twice, `look`; **Ergotrix** from `p_wait` (`within` 60, `learn` 0.4, `forget` 0.05) | 2 | 0.1 | the carrier is there; or, once learned, while it looks forward to it |
+| | `p_fed` | `fed`; **Ergotrix** from `p_carrier` (`within` 5, `learn` 0.4, `forget` 0.1) | 1 | 0.05 | fed, or, once learned, the carrier |
+| Scan | `phase` | `waiting`, inhibitory itself | 1 | 3 | on and off by turns while it waits |
+| | `look` | `waiting`, `phase` | 2 | 0.05 | waiting, while `phase` is on |
+| D | `pleasing_was`, `pleasing` | as in the optimist, from `p_fed` | | | being fed has just come to mind |
+| Choice | `choose` | `p_carrier`, `look`, `pleasing` | 3 | 0.05 | the carrier, looked forward to, has just led to food |
+| | `go_tap` | `choose`, itself, inhibitory `went_tap`, `carrier` | 1 | 0.05 | from the choice, for 1.5 s, while the carrier is not there |
+| | `went_tap` | `go_tap` | 1 | 1.5 | `go_tap` has been on for 1.5 s |
+| Tapping | `tapping` | `carrier`, `go_tap` | 1 | 0.05 | the carrier is there, or it is imagined |
+| | `beat` | `tapping`, inhibitory itself | 1 | 0.25 | on and off by turns while tapping |
+| | `tap_left`, `tap_right` | `tapping` with `beat`, or without it | 2, 1 | 0.05 | one wheel, then the other |
+| Facing | `face_left`, `face_right` | each door sensor, minus the other | 0.5 | 0.05 | the door light is more to one side |
+
+`left_motor` takes `tap_left` and `face_right`; `right_motor` takes `tap_right` and `face_left`. Tapping is a wiggle, one wheel and then the other, which pushes the vehicle against the fence and turns it a little each way. The door light turns it back to face the path whenever it has turned more than a few degrees, so that the carrier stays in view.
+
+The circuit is the optimist's, with one candidate instead of two. The present state that it holds is waiting; the next state it looks forward to, now and then, is the carrier; the evaluator finds it pleasing because the carrier brings food; and the chosen thought is acted out as what the vehicle does when the carrier is there: it taps.
+
+### How it behaves
+
+- **Before it has learned,** it waits still, and taps when the carrier is in front of it, by reflex, and is fed. The carrier's first pass teaches `p_wait → p_carrier` that the carrier comes after waiting, and the next ones teach `p_carrier → p_fed` that it brings food: `fed` comes half a second after the carrier, so it comes after it, as the Ergotrix rule asks.
+- **Impatient.** From the second pass on, both wires are active. While it waits, every 9 s or so `look` turns on, `p_carrier` lights from the learned wire, `p_fed` follows, `pleasing` pulses, and the vehicle taps for 1.5 s at nothing. Four or five times in each wait, the last one a few seconds before the carrier comes.
+- **It never learns better.** Each tap at nothing is a thought, which starts no wait ([Thoughts are not events](#thoughts-are-not-events)), so the wires are never told that the carrier did not come. A rule learned from events cannot be unlearned by imagining them: the belief survives every disappointment, because it is never tested.
+- **It does not hasten anything.** The carrier comes at the same times whether the vehicle taps at nothing or not. The **patient** vehicle (the control), the same definition with nothing feeding `pleasing`, learns the same wires, waits still between passes, and is fed exactly as often.
+
+Over 600 s the impatient vehicle taps at nothing 43 times; the patient one never does. Both are fed 12 times, when the carrier comes, which it does at the same times for both.
+
+### Acceptance criteria
+
+The scenario has no noise, so one run of 600 s stands for all seeds. A **pass** is an onset of `carrier`; a **tap at nothing** is an onset of `go_tap`. The **control** is the same definition without `p_fed` among `pleasing`'s inputs.
+
+- **I1. Learns first:** both wires exceed 0.7 before the third pass, and `go_tap` never fires before then.
+- **I2. Taps while it waits:** `go_tap` never fires while `carrier` is on, and fires at least 3 times between each two passes from the third on.
+- **I3. Does not hasten the carrier:** the passes come at the same times, within 0.2 s, for the impatient vehicle and the control; both are fed as often; the control never taps at nothing.
+- **I4. Stays in its pen,** inside x 45 to 55 and y 17 to 26, with its heading within 15° of the path's direction.
+- **I5. Its thoughts do not teach it otherwise:** once active, both wires stay above 0.7 to the end.
+- **I6. The circuit:** with both wires set to 1 and no carrier, `go_tap` fires at least twice in 20 s, each time just after `look`, for 1.3 to 1.8 s, and `tap_left` and `tap_right` take turns. With either wire at 0, it never taps.
+- **I7. Headless:** loading and running the scenario never imports pygame.
+
+### Diagram and files
+
+![The impatient vehicle's diagram](images/vehicle14-impatient.svg)
+
+- `vehicles/vehicle14-impatient.yaml`, `vehicles/vehicle14-carrier.yaml`, `worlds/doorstep.yaml` and `scenarios/vehicle14-impatient.yaml`: the vehicles, the world and the scenario (the impatient vehicle at `[50, 21]`, heading 90; the carrier at `[33, 47]`, heading 270, a quarter lap from the pen).
+- `specs/images/vehicle14-impatient.svg` and `specs/images/vehicle14-impatient.gif`: the diagram and the recording above.
+
+```
+python -m braitenberg scenarios/vehicle14-impatient.yaml
+python -m braitenberg.diagram vehicles/vehicle14-impatient.yaml --out specs/images/vehicle14-impatient.svg
+python -m braitenberg.record scenarios/vehicle14-impatient.yaml --seconds 170 --every 0.25 --speed 8 --scale 0.5 --out specs/images/vehicle14-impatient.gif
+```
+
 ## Related specs
 
 - [vehicle-11.md](vehicle-11.md): the Ergotrix wire, and its rule on onsets and fixed inputs, which this spec changes for the source.
@@ -266,7 +355,6 @@ Criteria 1 to 6 use the default scenario, run headless for 600 s, for seeds 0 to
 
 ## Out of scope
 
-- **The impatient vehicle.** Braitenberg's other scene: a Vehicle 14 waiting for another vehicle that carries an appealing source, which now and then performs the motions it would make when the source arrives, as if it could hasten it, as we run to the door before the bell rings. Here a pleasing thought is enacted only as the lane it chooses; a vehicle whose thoughts of the pleasing event itself drive its motors would show it. It is the natural second example.
 - **Graded values.** An evaluator with more than two values, and the book's double pass, scanning everything and then stopping at the best, which needs the scores kept while the scan goes on.
 - **Chains longer than two.** The optimist looks one step ahead from each lane: lane, then food. A predictor that scans chains of several steps, choosing at each, reaches farther goals.
 - **Optimism in the daydreamer.** The optimistic slant given to Vehicle 12's threshold control itself, so that trains of thought drift toward pleasing ideas with the senses silent: "nice dreams".

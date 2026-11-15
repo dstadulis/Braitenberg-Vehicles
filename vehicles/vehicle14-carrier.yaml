@@ -1,0 +1,28 @@
+general:
+  type: "14"
+  name: Carrier
+  description: >-
+    Carries something sweet round and round a circle: its right wheel turns a little faster than
+    its left. Once a lap it passes in front of the impatient vehicle's pen.
+  size: 4
+  height: 2
+  noise_std: 0
+
+appearance:
+  sweet: 10           # what the impatient vehicle sees and wants
+
+sensors: []
+
+actuators:
+  - actuator:
+      name: left_motor
+      type: motor
+      position: [-0.5, -0.7]
+      base_speed: 2
+      inputs: []
+  - actuator:
+      name: right_motor
+      type: motor
+      position: [0.5, -0.7]
+      base_speed: 2.25
+      inputs: []

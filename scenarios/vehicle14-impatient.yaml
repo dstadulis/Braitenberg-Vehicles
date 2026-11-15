@@ -1,0 +1,21 @@
+name: Impatient
+description: >-
+  The impatient vehicle waits in its pen for a carrier that brings something sweet once a lap.
+  Once it has learned that the carrier comes back and brings food, it taps at nothing every now
+  and then while it waits, as if that could hasten it.
+
+world: ../worlds/doorstep.yaml
+
+vehicles:
+  - vehicle:
+      definition: ../vehicles/vehicle14-impatient.yaml
+      position: [50, 21]           # in its pen, facing the fence
+      heading: 90
+  - vehicle:
+      definition: ../vehicles/vehicle14-carrier.yaml
+      position: [33, 47]           # on its circle round [50, 47], a quarter lap from the pen
+      heading: 270
+
+simulation:
+  dt: 0.01
+  seed: 0

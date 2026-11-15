@@ -1,0 +1,26 @@
+name: Doorstep
+description: >-
+  An open field with a small pen behind a low fence, open toward a circular path along which a
+  carrier vehicle brings something sweet once a lap (Vehicle 14, the impatient vehicle).
+
+arena:
+  width: 100
+  height: 100
+  edges: wrap
+
+stimuli:
+  sweet:            # the carrier's color, seen by cameras only
+    sources: []
+  door:             # a faint light in the middle of the carrier's circle, that the pen faces
+    sources:
+      - position: [50, 47]
+        intensity: 10
+        falloff: 30
+
+obstacles:
+  # The pen, x 45 to 55, y 17 to 25.5: a back wall, two side walls, and a low fence in front,
+  # over which a camera 1 high sees what passes. Black for the sweet camera.
+  - box: {position: [50, 16.5], length: 11, width: 1, appearance: {sweet: 0}}
+  - box: {position: [44.5, 21.25], length: 9.5, width: 1, heading: 90, appearance: {sweet: 0}}
+  - box: {position: [55.5, 21.25], length: 9.5, width: 1, heading: 90, appearance: {sweet: 0}}
+  - box: {position: [50, 26], length: 11, width: 1, height: 0.6, appearance: {sweet: 0}}
