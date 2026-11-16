@@ -1,0 +1,14 @@
+name: Gatherer (gets ideas)
+description: A gatherer in the orchard. Red berry bushes are sweet for the first 600 s, blue-and-yellow stones for the next 600 s. Watch two ideas form, red with sweet and blue with yellow, and then the first fall apart and the second take in sweet.
+
+world: ../worlds/orchard.yaml
+
+vehicles:
+  - vehicle:
+      definition: ../vehicles/vehicle10-gatherer.yaml
+      position: [50, 50]
+      heading: 45
+
+simulation:
+  dt: 0.01
+  seed: 0

@@ -1,0 +1,361 @@
+general:
+  type: "10"
+  name: Gatherer (gets ideas)
+  description: Four senses, red, blue, yellow and sweet, each wired by Mnemotrix to the thoughts of the other three. Senses that the world presents together become linked into ideas, and a part of an idea calls up the rest. A hungry gatherer goes to any color that makes it think of sweet.
+  size: 4
+  noise_std: 0.3
+
+sensors:
+  - sensor:
+      name: red_left
+      type: red
+      position: [-0.9, 0.9]
+      field_of_view: 90   # to steer toward it
+  - sensor:
+      name: red_right
+      type: red
+      position: [0.9, 0.9]
+      field_of_view: 90   # to steer toward it
+  - sensor:
+      name: red_eye
+      type: red
+      position: [-0.2, 0.9]   # all around: to see it
+  - sensor:
+      name: blue_left
+      type: blue
+      position: [-0.78, 0.78]
+      field_of_view: 90   # to steer toward it
+  - sensor:
+      name: blue_right
+      type: blue
+      position: [0.78, 0.78]
+      field_of_view: 90   # to steer toward it
+  - sensor:
+      name: blue_eye
+      type: blue
+      position: [0.0, 0.9]   # all around: to see it
+  - sensor:
+      name: yellow_left
+      type: yellow
+      position: [-0.6, 0.9]
+      field_of_view: 90   # to steer toward it
+  - sensor:
+      name: yellow_right
+      type: yellow
+      position: [0.6, 0.9]
+      field_of_view: 90   # to steer toward it
+  - sensor:
+      name: yellow_eye
+      type: yellow
+      position: [0.2, 0.9]   # all around: to see it
+  - sensor:
+      name: nose_left
+      type: sweet
+      position: [-0.45, 0.78]
+  - sensor:
+      name: nose_right
+      type: sweet
+      position: [0.45, 0.78]
+  - sensor:
+      name: energy
+      type: energy
+      position: [0, -0.8]
+
+energy:
+  initial: 50
+  max: 100
+  consumption: 0.5         # per unit of distance traveled
+  basal: 2                 # per second, for being alive
+  charge_from: sweet
+  charge_gain: 4           # per second, per unit of sweet at the body center
+
+units:
+  # Senses: fed by sensors only
+  - unit:
+      name: sees_red
+      type: threshold
+      threshold: 3.5   # within about 20 units
+      position: [-0.6, 0.55]
+      inputs:
+        - input:
+            from: red_eye
+  - unit:
+      name: sees_blue
+      type: threshold
+      threshold: 3.5   # within about 20 units
+      position: [-0.2, 0.55]
+      inputs:
+        - input:
+            from: blue_eye
+  - unit:
+      name: sees_yellow
+      type: threshold
+      threshold: 3.5   # within about 20 units
+      position: [0.2, 0.55]
+      inputs:
+        - input:
+            from: yellow_eye
+  - unit:
+      name: smells_sweet
+      type: threshold
+      threshold: 4     # within about 6 units
+      position: [0.6, 0.55]
+      inputs:
+        - input:
+            from: nose_left
+        - input:
+            from: nose_right
+  # Thoughts: each its own sense, plus a Mnemotrix wire from each of the other three senses
+  - unit:
+      name: thinks_red
+      type: threshold
+      threshold: 1
+      position: [-0.6, 0.1]
+      inputs:
+        - input:
+            from: sees_red
+        - input:
+            from: sees_blue
+            strength: 0
+            learning:
+              type: mnemotrix
+              learn: 0.5
+              forget: 0.01
+        - input:
+            from: sees_yellow
+            strength: 0
+            learning:
+              type: mnemotrix
+              learn: 0.5
+              forget: 0.01
+        - input:
+            from: smells_sweet
+            strength: 0
+            learning:
+              type: mnemotrix
+              learn: 0.5
+              forget: 0.01
+  - unit:
+      name: thinks_blue
+      type: threshold
+      threshold: 1
+      position: [-0.2, 0.1]
+      inputs:
+        - input:
+            from: sees_blue
+        - input:
+            from: sees_red
+            strength: 0
+            learning:
+              type: mnemotrix
+              learn: 0.5
+              forget: 0.01
+        - input:
+            from: sees_yellow
+            strength: 0
+            learning:
+              type: mnemotrix
+              learn: 0.5
+              forget: 0.01
+        - input:
+            from: smells_sweet
+            strength: 0
+            learning:
+              type: mnemotrix
+              learn: 0.5
+              forget: 0.01
+  - unit:
+      name: thinks_yellow
+      type: threshold
+      threshold: 1
+      position: [0.2, 0.1]
+      inputs:
+        - input:
+            from: sees_yellow
+        - input:
+            from: sees_red
+            strength: 0
+            learning:
+              type: mnemotrix
+              learn: 0.5
+              forget: 0.01
+        - input:
+            from: sees_blue
+            strength: 0
+            learning:
+              type: mnemotrix
+              learn: 0.5
+              forget: 0.01
+        - input:
+            from: smells_sweet
+            strength: 0
+            learning:
+              type: mnemotrix
+              learn: 0.5
+              forget: 0.01
+  - unit:
+      name: thinks_sweet
+      type: threshold
+      threshold: 1
+      position: [0.6, 0.1]
+      inputs:
+        - input:
+            from: smells_sweet
+        - input:
+            from: sees_red
+            strength: 0
+            learning:
+              type: mnemotrix
+              learn: 0.5
+              forget: 0.01
+        - input:
+            from: sees_blue
+            strength: 0
+            learning:
+              type: mnemotrix
+              learn: 0.5
+              forget: 0.01
+        - input:
+            from: sees_yellow
+            strength: 0
+            learning:
+              type: mnemotrix
+              learn: 0.5
+              forget: 0.01
+  # Going to a color that makes it think of sweet, while hungry and not yet smelling it
+  - unit:
+      name: wants_red
+      type: threshold
+      threshold: 2
+      position: [-0.66, -0.2]
+      inputs:
+        - input:
+            from: sees_red
+        - input:
+            from: thinks_sweet
+        - input:
+            from: smells_sweet
+            type: inhibitory
+        - input:
+            from: hunger.full
+            type: inhibitory
+  - unit:
+      name: wants_blue
+      type: threshold
+      threshold: 2
+      position: [-0.3, -0.2]
+      inputs:
+        - input:
+            from: sees_blue
+        - input:
+            from: thinks_sweet
+        - input:
+            from: smells_sweet
+            type: inhibitory
+        - input:
+            from: hunger.full
+            type: inhibitory
+  - unit:
+      name: wants_yellow
+      type: threshold
+      threshold: 2
+      position: [0.06, -0.2]
+      inputs:
+        - input:
+            from: sees_yellow
+        - input:
+            from: thinks_sweet
+        - input:
+            from: smells_sweet
+            type: inhibitory
+        - input:
+            from: hunger.full
+            type: inhibitory
+  # Eating: circle the sweet while not full
+  - unit:
+      name: feeding
+      type: threshold
+      threshold: 1
+      position: [0.4, -0.2]
+      inputs:
+        - input:
+            from: smells_sweet
+        - input:
+            from: hunger.full
+            type: inhibitory
+
+modules:
+  # Full from energy 90 until hungry again at 30, as the Vehicle 5 forager.
+  - module:
+      name: hunger
+      file: ../modules/hunger.yaml
+      position: [0.76, -0.2]
+      inputs:
+        energy: energy
+  - module:
+      name: to_red
+      file: ../modules/steer.yaml
+      position: [-0.71, -0.52]
+      inputs:
+        left: red_left
+        right: red_right
+        enable: wants_red
+  - module:
+      name: to_blue
+      file: ../modules/steer.yaml
+      position: [-0.237, -0.52]
+      inputs:
+        left: blue_left
+        right: blue_right
+        enable: wants_blue
+  - module:
+      name: to_yellow
+      file: ../modules/steer.yaml
+      position: [0.237, -0.52]
+      inputs:
+        left: yellow_left
+        right: yellow_right
+        enable: wants_yellow
+  - module:
+      name: eat
+      file: ../modules/steer.yaml
+      position: [0.71, -0.52]
+      inputs:
+        left: nose_left
+        right: nose_right
+        enable: feeding
+
+actuators:
+  # Speeding up the right motor turns left, the left motor turns right.
+  - actuator:
+      name: left_motor
+      type: motor
+      position: [-0.5, -0.8]
+      inputs:
+        - input:
+            from: to_red.turn_right
+        - input:
+            from: to_blue.turn_right
+        - input:
+            from: to_yellow.turn_right
+        - input:
+            from: eat.turn_right
+      gain: 3
+      base_speed: 3
+      max_speed: 6
+  - actuator:
+      name: right_motor
+      type: motor
+      position: [0.5, -0.8]
+      inputs:
+        - input:
+            from: to_red.turn_left
+        - input:
+            from: to_blue.turn_left
+        - input:
+            from: to_yellow.turn_left
+        - input:
+            from: eat.turn_left
+      gain: 3
+      base_speed: 3
+      max_speed: 6

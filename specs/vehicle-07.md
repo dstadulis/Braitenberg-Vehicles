@@ -38,7 +38,7 @@ A learning connection is an ordinary input ([vehicle-definition.md](vehicle-defi
 Each step, every Mnemotrix connection from a source `S` to a unit `D` looks at two things:
 
 - **Is the source on?** `S`'s contribution in `D`'s simultaneity window (the value `D` uses for its activation, see *Signal flow*) is 1.
-- **Is the destination driven by its other inputs?** The sum of `D`'s **other** active inputs, computed as for its activation, reaches `D`'s threshold. "Other" leaves out this connection.
+- **Is the destination driven by its other inputs?** The sum of `D`'s **other** active inputs, computed as for its activation, reaches `D`'s threshold. "Other" leaves out this connection. Since Vehicle 10 ([vehicle-10.md](vehicle-10.md), *Learned from events only*), only `D`'s **fixed** inputs count: other learning connections into `D` are left out too, so that one association cannot teach another. For the wary moth this changes nothing, since its two learning wires are never on together.
 
 Then:
 
@@ -221,4 +221,4 @@ The behavior criteria are deliberately about what happens, not when: when the mo
 - Strength as a weight rather than a gate. Connections stay all-or-nothing, as in Vehicle 5.
 - Passive decay: forgetting while the cue is absent.
 - Evolving `learn` and `forget` with Vehicle 6, so that selection could tune how fast a vehicle learns. A later spec can add them as gene targets.
-- Larger concepts: groups of many units linked by many Mnemotrix wires, where part of a pattern recalls the whole. The wary moth links one cue to one meaning, the smallest concept.
+- Larger concepts: groups of many units linked by many Mnemotrix wires, where part of a pattern recalls the whole. The wary moth links one cue to one meaning, the smallest concept. Vehicle 10 ([vehicle-10.md](vehicle-10.md)) takes that step.

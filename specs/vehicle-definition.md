@@ -254,25 +254,25 @@ inputs:
       strength: 0            # starting strength: inactive
       learning:
         type: mnemotrix
-        learn: 0.3           # per second, while sees_red fires and the destination's other inputs make it fire
+        learn: 0.3           # per second, while sees_red fires and the destination's fixed inputs make it fire
         forget: 0.01         # per second, while sees_red fires and they do not
 ```
 
 | Key | Required | Meaning |
 |---|---|---|
 | `type` | yes | `mnemotrix`, or `ergotrix` ([vehicle-11.md](vehicle-11.md)). |
-| `learn` | yes | Strength gained per second while the source fires and the destination is driven by its other inputs. Not negative. |
-| `forget` | no | Strength lost per second while the source fires and the destination is not driven by its other inputs. Not negative. Default 0. |
+| `learn` | yes | Strength gained per second while the source fires and the destination is driven by its fixed inputs. Not negative. |
+| `forget` | no | Strength lost per second while the source fires and the destination is not driven by its fixed inputs. Not negative. Default 0. |
 
-Each step, a Mnemotrix connection from source `S` to unit `D` checks whether the source is **on** (its contribution in `D`'s simultaneity window is 1) and whether `D` is **driven by its other inputs** (the sum of `D`'s other active inputs, leaving out this connection, reaches `D`'s threshold). Then:
+Each step, a Mnemotrix connection from source `S` to unit `D` checks whether the source is **on** (its contribution in `D`'s simultaneity window is 1) and whether `D` is **driven by its fixed inputs** (the sum of `D`'s active inputs without `learning`, which leaves out this connection and every other learning one, reaches `D`'s threshold; [vehicle-10.md](vehicle-10.md), *Learned from events only*). Then:
 
-| Source | Destination driven by other inputs | Strength |
+| Source | Destination driven by fixed inputs | Strength |
 |---|---|---|
 | on | yes | `+= learn * dt` |
 | on | no | `-= forget * dt` |
 | off | either | unchanged |
 
-The strength is clipped to `[0, 1]`. The connection's own contribution is left out so that a learned association cannot keep confirming itself and can still be unlearned ([vehicle-07.md](vehicle-07.md) explains why).
+The strength is clipped to `[0, 1]`. The connection's own contribution is left out so that a learned association cannot keep confirming itself and can still be unlearned ([vehicle-07.md](vehicle-07.md) explains why), and the other learning connections' so that one association cannot teach another ([vehicle-10.md](vehicle-10.md)).
 
 - The source must be a unit and the destination must be a unit. A unit may not learn from itself.
 - A learning connection may be excitatory or inhibitory; the rule is the same.
@@ -292,7 +292,7 @@ Each simulation step:
 2. **Units** all update at once, in three parts:
    - **Outputs.** Each unit's visible output becomes the activation it computed `delay` seconds ago. Delays are rounded to a whole number of steps, at least one: with the default `delay` 0.05 and `dt` 0.05, one step; with `dt` 0.01, five steps. Outputs start at 0, and so do activations still on their way.
    - **Activations.** Each unit computes its activation, `1` or `0`, from its inputs: this step's sensor outputs and the unit outputs just made visible. Each input contributes the largest value it had within the unit's simultaneity window, which is the last `round(delay / dt)` steps including this one. The activation enters the unit's delay line, to become its output `delay` seconds later.
-   - **Learning.** Each learning connection updates its strength (see *Learning connections*) from the values just used for the activations: its source's contribution in the destination's window and the destination's other inputs. The new strength takes effect from the next step; within a step, a connection is active or not as decided by its strength at the start of the step.
+   - **Learning.** Each learning connection updates its strength (see *Learning connections*) from the values just used for the activations: its source's contribution in the destination's window and the destination's fixed inputs. The new strength takes effect from the next step; within a step, a connection is active or not as decided by its strength at the start of the step.
 3. **Actuators** compute their speed from this step's sensor outputs and the visible unit outputs from step 2. Actuators have no delay: a sensor wired straight to a motor acts at once, as in Vehicles 1 to 4.
 4. **Movement** (below), then the arena's edge rule.
 

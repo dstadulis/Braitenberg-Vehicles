@@ -1,7 +1,7 @@
 # Braitenberg-Vehicles
-An implementation of the Vehicles described in the book [Vehicles](https://en.wikipedia.org/wiki/Braitenberg_vehicle) by Valentino Braitenberg, specially the most advanced ones
+An implementation of all 14 Vehicles described in the book [Vehicles](https://en.wikipedia.org/wiki/Braitenberg_vehicle) by Valentino Braitenberg, from Vehicle 1 to Vehicle 14.
 
-While there are many implementations of Braitenberg's Vehicles, almost all of them stop at Vehicle 4 (the simplest ones, which connect sensors directly to actuators). The goal of this repo is to implement Vehicles 5 and beyond, the ones that have a 'nervous system' between the sensors and the actuators.
+While there are many implementations of Braitenberg's Vehicles, almost all of them stop at Vehicle 4 (the simplest ones, which connect sensors directly to actuators). This repo implements all fourteen, including Vehicles 5 to 14, the ones that have a 'nervous system' between the sensors and the actuators: logic, selection, concepts, vision, shapes, ideas, rules, trains of thought, foresight and optimism. Each has a spec in [specs/](specs/), at least one scenario to run, and tests for its acceptance criteria.
 
 ## Examples
 
@@ -56,6 +56,18 @@ python -m braitenberg scenarios/vehicle9-shy.yaml
 ```
 
 See [specs/vehicle-09.md](specs/vehicle-09.md) for the circuits.
+
+### Vehicle 10 — A gatherer that gets ideas
+
+![The gatherer learns that red goes with sweet and blue with yellow, heads for red bushes from afar, and after 600 s lets red go and joins sweet to the stones](specs/images/vehicle10-gatherer.gif)
+
+The gatherer has four senses, red, blue, yellow and sweet, and a thought for each. Every sense is wired by a Mnemotrix wire to the thoughts of the other three: twelve wires, and the designer does not say which senses belong together. In the orchard, red berry bushes are sweet and the stones are blue and yellow, so only the wires between red and sweet and between blue and yellow grow: the gatherer gets two ideas nobody gave it. From then on, part of an idea calls up the rest: seeing red from afar makes it think of sweet, and a hungry gatherer heads for the bush. After 600 s the berries are gone and the stones turn sweet; red stops meaning sweet, and blue, yellow and sweet join into one idea with three members. In the panel, watch the twelve wires at the bottom.
+
+```
+python -m braitenberg scenarios/vehicle10-gatherer.yaml
+```
+
+See [specs/vehicle-10.md](specs/vehicle-10.md) for the design, and for the change to the Mnemotrix rule that keeps one association from teaching another.
 
 ### Vehicle 11 — A cautious driver that learns to stop at yellow
 
@@ -169,6 +181,7 @@ Each example is a scenario in `scenarios/`. Run it with `python -m braitenberg` 
 | Vehicle 7: Wary moth | Learns that the red lamp burns and keeps away from it; unlearns it when the lamp goes cold | `python -m braitenberg scenarios/vehicle7-wary-moth.yaml` |
 | Vehicle 8: Hunter | Ignores the still lamps; turns toward and lunges at its prey when it moves | `python -m braitenberg scenarios/vehicle8-hunter.yaml` |
 | Vehicle 9: Shy | Watches what it sees; runs from whatever comes straight at it, which it tells by symmetry | `python -m braitenberg scenarios/vehicle9-shy.yaml` |
+| Vehicle 10: Gatherer | Learns which senses go together into ideas, and goes to any color that makes it think of sweet | `python -m braitenberg scenarios/vehicle10-gatherer.yaml` |
 | Vehicle 11: Cautious driver | Learns the traffic light's sequence and stops at yellow | `python -m braitenberg scenarios/vehicle11-cautious-driver.yaml` |
 | Vehicle 11: Landmark forager | Learns that food is at blue posts, and heads for them when hungry | `python -m braitenberg scenarios/vehicle11-landmark-forager.yaml` |
 | Vehicle 12: Daydreamer | With nothing to sense, one idea leads to the next under a threshold control | `python -m braitenberg scenarios/vehicle12-daydreamer.yaml` |

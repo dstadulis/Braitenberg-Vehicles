@@ -324,5 +324,5 @@ The driver has no noise, so where it meets the light depends only on where it st
 - **Learning the interval.** `within` is set in the definition; the wire does not find out how long the gap is.
 - **Chains of predictions.** Braitenberg's next vehicles string Ergotrix wires into sequences that run on their own: Vehicle 12, "Trains of Thought", and Vehicle 13, "Foresight". The cautious driver learns the whole cycle of the light, but each expectation comes only from what it sees, never from another expectation (see *Why two layers*).
 - **Going on at yellow when it is too late to stop.** The driver stops wherever the yellow catches it past the line, as the Vehicle 5 driver does at red. Deciding to carry on instead is left for later.
-- **Vehicle 10, "Getting Ideas"**, which this spec does not depend on and is not specified yet.
+- **Vehicle 10, "Getting Ideas"**, which this spec does not depend on; see [vehicle-10.md](vehicle-10.md).
 - Evolving `within`, `learn` and `forget` with Vehicle 6.

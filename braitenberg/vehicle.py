@@ -270,7 +270,7 @@ class Vehicle:
                                     0.0)
             activations = np.where(self.is_control, self.offsets, activations)
         self.activations[self.t % len(self.activations)] = activations
-        # Learning: a Mnemotrix connection whose source is on learns when the unit's other inputs
+        # Learning: a Mnemotrix connection whose source is on learns when the unit's fixed inputs
         # fire it, and forgets when they do not (see 'Learning connections'). An Ergotrix
         # connection learns when the unit's fixed inputs turn it on soon after its source turns on.
         learned = {}
@@ -283,8 +283,10 @@ class Vehicle:
                 if strength is not None:
                     learned[(u.name, j)] = strength
             elif inputs[first + j] > 0:
+                # Only fixed inputs teach: another learned wire into the unit is an
+                # association, not an event (specs/vehicle-10.md, *Learned from events only*).
                 signals_k = contributions[first:first + len(u.inputs)].tolist()
-                others = sum(signals_k[:j] + signals_k[j + 1:])
+                others = sum(x for i, x in enumerate(signals_k) if not u.inputs[i].learning)
                 rate = c.learning.learn if others >= u.threshold else -c.learning.forget
                 learned[(u.name, j)] = clamp01(self.strengths[(u.name, j)] + rate * self.dt)
         self.strengths.update(learned)  # takes effect from the next step
