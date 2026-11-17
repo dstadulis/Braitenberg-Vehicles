@@ -1,0 +1,54 @@
+name: Twin-lamp separatrix splitting
+description: >-
+  A symmetric fan of Vehicle 3a (Love) and Vehicle 4a (Orbiter) vehicles straddling the
+  midline x = 50 unstable-manifold separatrix between the two lamps at [30, 50] and [70, 50].
+  Vehicles starting fractions of a unit apart across the symmetry axis peel away in opposite
+  directions toward competing attractors. Press D to reveal the live phase portrait and flow field.
+
+world: ../worlds/two-lights.yaml
+
+vehicles:
+  - vehicle:
+      definition: ../vehicles/vehicle3a-love.yaml
+      position: [47.0, 30]
+      heading: 94.5
+      label: Love -3.0
+  - vehicle:
+      definition: ../vehicles/vehicle3a-love.yaml
+      position: [48.6, 30]
+      heading: 92.0
+      label: Love -1.4
+  - vehicle:
+      definition: ../vehicles/vehicle3a-love.yaml
+      position: [49.6, 30]
+      heading: 90.6
+      label: Love -0.4
+  - vehicle:
+      definition: ../vehicles/vehicle3a-love.yaml
+      position: [50.4, 30]
+      heading: 89.4
+      label: Love +0.4
+  - vehicle:
+      definition: ../vehicles/vehicle3a-love.yaml
+      position: [51.4, 30]
+      heading: 88.0
+      label: Love +1.4
+  - vehicle:
+      definition: ../vehicles/vehicle3a-love.yaml
+      position: [53.0, 30]
+      heading: 85.5
+      label: Love +3.0
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [48.8, 20]
+      heading: 92.5
+      label: Orbiter left
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [51.2, 20]
+      heading: 87.5
+      label: Orbiter right
+
+simulation:
+  dt: 0.05
+  seed: 0

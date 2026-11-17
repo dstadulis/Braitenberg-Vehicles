@@ -1,0 +1,25 @@
+name: Three lights chaos
+description: >-
+  Three lamps at the vertices of an equilateral triangle (circumradius 42 around [80, 80]).
+  Calibrated so Vehicle 4a's preferred-intensity rings and Vehicle 4b's step-repulsion discs
+  form three competing scatterers separated by hyperbolic saddle separatrices, supporting
+  coexisting single-lamp limit cycles, figure-eight homoclinic/heteroclinic loops, and
+  chaotic three-body scattering.
+
+arena:
+  width: 160
+  height: 160
+  edges: wrap
+
+stimuli:
+  light:
+    sources:
+      - position: [80, 122]        # north lamp (vertex 0, 90 deg)
+        intensity: 9
+        falloff: 12.5
+      - position: [43.63, 59]      # southwest lamp (vertex 1, 210 deg)
+        intensity: 9
+        falloff: 12.5
+      - position: [116.37, 59]     # southeast lamp (vertex 2, 330 deg)
+        intensity: 9
+        falloff: 12.5

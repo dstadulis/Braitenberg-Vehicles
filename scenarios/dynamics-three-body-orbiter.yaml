@@ -1,0 +1,55 @@
+name: Three-body orbiter chaos
+description: >-
+  Six Vehicle 4a Orbiters launched from the southern saddle midpoint [80, 59] at headings
+  differing by just 2 degrees (84 to 96 deg), alongside a symmetric pair of Vehicle 4b
+  Deciders straddling the symmetry axis. Tiny angular perturbations split trajectories onto
+  distinct lamp limit cycles, figure-eight loops, and three-lamp chaotic tours. Press D in
+  the window to view the live flow field and polar phase portrait.
+
+world: ../worlds/three-lights-chaos.yaml
+
+vehicles:
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 59]
+      heading: 84
+      label: Orbiter 84 deg
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 59]
+      heading: 86
+      label: Orbiter 86 deg
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 59]
+      heading: 88
+      label: Orbiter 88 deg
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 59]
+      heading: 92
+      label: Orbiter 92 deg
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 59]
+      heading: 94
+      label: Orbiter 94 deg
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 59]
+      heading: 96
+      label: Orbiter 96 deg
+  - vehicle:
+      definition: ../vehicles/vehicle4b-decider.yaml
+      position: [79.5, 85]
+      heading: 91.5
+      label: Decider left
+  - vehicle:
+      definition: ../vehicles/vehicle4b-decider.yaml
+      position: [80.5, 85]
+      heading: 88.5
+      label: Decider right
+
+simulation:
+  dt: 0.05
+  seed: 0

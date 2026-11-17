@@ -1,0 +1,2917 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cosmic">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Braitenberg × Strogatz — Interactive Complex Dynamics Laboratory</title>
+<style>
+  :root, [data-theme="cosmic"] {
+    --bg-page: #050714;
+    --bg-panel: #0a0f26;
+    --bg-panel-alt: #0f1636;
+    --bg-canvas: #060818;
+    --border: rgba(99, 132, 255, 0.22);
+    --border-bright: rgba(56, 189, 248, 0.55);
+    --text-main: #eef2ff;
+    --text-muted: #94a3c8;
+    --text-dim: #64749b;
+    --accent-cyan: #38bdf8;
+    --accent-gold: #fbbf24;
+    --accent-coral: #fb7185;
+    --accent-emerald: #34d399;
+    --accent-violet: #c084fc;
+    --btn-bg: rgba(30, 42, 90, 0.65);
+    --btn-hover: rgba(56, 189, 248, 0.22);
+    --shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
+  }
+
+  [data-theme="textbook"] {
+    --bg-page: #f4f1ea;
+    --bg-panel: #fcfbf7;
+    --bg-panel-alt: #f0ede4;
+    --bg-canvas: #fcfbf7;
+    --border: rgba(24, 24, 27, 0.18);
+    --border-bright: rgba(24, 24, 27, 0.65);
+    --text-main: #18181b;
+    --text-muted: #3f3f46;
+    --text-dim: #71717a;
+    --accent-cyan: #0369a1;
+    --accent-gold: #b45309;
+    --accent-coral: #be123c;
+    --accent-emerald: #047857;
+    --accent-violet: #6d28d9;
+    --btn-bg: #ebe7dc;
+    --btn-hover: #dcd6c6;
+    --shadow: 0 8px 24px rgba(24, 24, 27, 0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-page);
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+    min-height: 100vh;
+    padding: 18px 22px 32px;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+
+  .app-shell {
+    max-width: 1560px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  header.topbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+  }
+
+  .brand h1 {
+    font-size: 1.28rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand h1 span.tag {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--btn-bg);
+    color: var(--accent-cyan);
+    border: 1px solid var(--border-bright);
+    font-weight: 600;
+  }
+
+  .brand .subtitle {
+    font-size: 0.86rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .math-pill {
+    font-family: "STIX Two Math", "Cambria Math", "Times New Roman", Georgia, serif;
+    font-style: italic;
+    font-size: 0.98rem;
+    padding: 6px 14px;
+    border-radius: 10px;
+    background: var(--bg-panel-alt);
+    border: 1px solid var(--border);
+    color: var(--accent-gold);
+    white-space: nowrap;
+  }
+
+  .top-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  button, select {
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-main);
+    background: var(--btn-bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 7px 12px;
+    cursor: pointer;
+    transition: all 0.16s ease;
+  }
+
+  button:hover, select:hover {
+    background: var(--btn-hover);
+    border-color: var(--border-bright);
+  }
+
+  button.primary {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(192, 132, 252, 0.26));
+    border-color: var(--accent-cyan);
+  }
+
+  [data-theme="textbook"] button.primary {
+    background: #18181b;
+    color: #fcfbf7;
+    border-color: #18181b;
+  }
+
+  button.active-toggle {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    box-shadow: inset 0 0 0 1px var(--accent-cyan);
+  }
+
+  .preset-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
+    gap: 8px;
+  }
+
+  .preset-btn {
+    text-align: left;
+    padding: 9px 12px;
+    border-radius: 11px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .preset-btn .act-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent-cyan);
+    font-weight: 700;
+  }
+
+  .preset-btn .preset-title {
+    font-size: 0.83rem;
+    font-weight: 650;
+    color: var(--text-main);
+  }
+
+  .preset-btn.selected {
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 0 1px var(--accent-gold), var(--shadow);
+    background: var(--bg-panel-alt);
+  }
+
+  .preset-btn.selected .act-label {
+    color: var(--accent-gold);
+  }
+
+  .stage-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  @media (max-width: 1100px) {
+    .stage-grid { grid-template-columns: 1fr; }
+  }
+
+  .canvas-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 0 4px;
+  }
+
+  .card-header h2 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .card-header .readout {
+    font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .canvas-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    max-height: 620px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--bg-canvas);
+  }
+
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: crosshair;
+  }
+
+  .canvas-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    padding: 2px 4px 0;
+  }
+
+  .hint-kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 5px;
+    background: var(--bg-panel-alt);
+    border: 1px solid var(--border);
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 0.7rem;
+    color: var(--text-main);
+  }
+
+  .dock-grid {
+    display: grid;
+    grid-template-columns: 2.1fr 1.2fr;
+    gap: 14px;
+  }
+
+  @media (max-width: 1100px) {
+    .dock-grid { grid-template-columns: 1fr; }
+  }
+
+  .controls-card, .notes-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 15px 18px;
+    box-shadow: var(--shadow);
+  }
+
+  .controls-top {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sliders-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
+    gap: 12px 18px;
+  }
+
+  .slider-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .slider-row label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .slider-row label span.val {
+    font-family: "SF Mono", Menlo, monospace;
+    color: var(--accent-cyan);
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent-cyan);
+    cursor: pointer;
+  }
+
+  .notes-card h3 {
+    font-size: 0.95rem;
+    color: var(--accent-gold);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .notes-card p {
+    font-size: 0.84rem;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .notes-card .formula-box {
+    font-family: "STIX Two Math", "Cambria Math", Georgia, serif;
+    font-size: 0.92rem;
+    background: var(--bg-panel-alt);
+    border-left: 3px solid var(--accent-cyan);
+    padding: 8px 12px;
+    border-radius: 6px;
+    color: var(--text-main);
+    margin-top: 6px;
+  }
+
+  .legend-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.73rem;
+    color: var(--text-muted);
+  }
+
+  .chip i {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <div class="brand">
+      <h1>
+        Braitenberg × Strogatz
+        <span class="tag">Complex Dynamics Lab</span>
+      </h1>
+      <div class="subtitle" id="headerSubtitle">
+        Symmetry reduction, Lagrangian coherent structures, fold hysteresis &amp; homeostatic criticality
+      </div>
+    </div>
+    <div class="math-pill" id="headerEquation">
+      ṙ = −v(r, ψ) cos ψ , &nbsp; ψ̇ = (v(r, ψ)/r) sin ψ − ω(r, ψ)
+    </div>
+    <div class="top-actions">
+      <button id="btnPlayPause" title="Spacebar">⏸ Pause</button>
+      <button id="btnStep" title="Advance one dt=0.05s step">⏭ Step</button>
+      <button id="btnSwarm" class="primary" title="Release 800 glowing vehicles">✨ Release 800-Particle Swarm</button>
+      <button id="btnReset">↺ Reset Preset</button>
+      <button id="btnTheme">☀ Strogatz Textbook</button>
+      <button id="btnExport4K" title="Render high-resolution 3840×2160 dual plate">📷 Export 4K PNG</button>
+    </div>
+  </header>
+
+  <nav class="preset-bar" id="presetBar"></nav>
+
+  <main class="stage-grid">
+    <section class="canvas-card">
+      <div class="card-header">
+        <h2 id="leftTitle">Physical Arena (x, y, θ)</h2>
+        <div class="readout" id="arenaReadout">t = 0.00 s · N = 1</div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="arenaCanvas" width="900" height="900"></canvas>
+      </div>
+      <div class="canvas-footer">
+        <div>
+          <span class="hint-kbd">Drag Lamp</span> deform field &nbsp;
+          <span class="hint-kbd">Shift+Click</span> add/remove lamp &nbsp;
+          <span class="hint-kbd">Click / Drag</span> launch vehicle
+        </div>
+        <div class="legend-chips">
+          <button id="btnToggleFTLE">FTLE Ridges</button>
+          <button id="btnToggleBasins">Capture Basins</button>
+          <button id="btnToggleFlow" class="active-toggle">Flow &amp; Rings</button>
+          <button id="btnToggleTrails" class="active-toggle">Comet Trails</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="canvas-card">
+      <div class="card-header">
+        <h2 id="rightTitle">Synchronized Cylindrical Phase Space (r, ψ)</h2>
+        <div class="readout" id="phaseReadout">Nullclines: ṙ = 0, ψ̇ = 0</div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="phaseCanvas" width="900" height="900"></canvas>
+      </div>
+      <div class="canvas-footer">
+        <div class="legend-chips" id="phaseLegend">
+          <span class="chip"><i style="background:#34d399"></i> ṙ = 0 nullcline</span>
+          <span class="chip"><i style="background:#fbbf24"></i> ψ̇ = 0 nullcline</span>
+          <span class="chip"><i style="background:#fb7185"></i> Limit cycle / Separatrix</span>
+          <span class="chip"><i style="background:#38bdf8"></i> Live particles</span>
+        </div>
+        <div id="extraActionSlot"></div>
+      </div>
+    </section>
+  </main>
+
+  <section class="dock-grid">
+    <div class="controls-card">
+      <div class="controls-top">
+        <label style="font-size:0.8rem;color:var(--text-muted);font-weight:600;">
+          Vehicle Architecture:
+          <select id="selVehicle">
+            <option value="4a">Vehicle 4a — Orbiter (crossed + Gaussian peak)</option>
+            <option value="4b">Vehicle 4b — Decider (straight + step threshold)</option>
+            <option value="3a">Vehicle 3a — Love (straight + inhibitory)</option>
+            <option value="3b">Vehicle 3b — Explorer (crossed + inhibitory)</option>
+            <option value="2a">Vehicle 2a — Fear (straight + excitatory)</option>
+            <option value="2b">Vehicle 2b — Aggression (crossed + excitatory)</option>
+            <option value="3inv">Vehicle 4-Inv — Smooth Hyperbolic Love (inverse response)</option>
+            <option value="5">Vehicle 5 — Moth (9-unit pain/burned latch)</option>
+            <option value="12">Vehicle 12 — Daydreamer (8-idea ring + caudate control)</option>
+          </select>
+        </label>
+        <label style="font-size:0.8rem;color:var(--text-muted);font-weight:600;">
+          Wiring:
+          <select id="selWiring">
+            <option value="crossed">Crossed (contralateral)</option>
+            <option value="straight">Uncrossed (ipsilateral)</option>
+          </select>
+        </label>
+        <label style="font-size:0.8rem;color:var(--text-muted);font-weight:600;">
+          Sign:
+          <select id="selSign">
+            <option value="1">Excitatory (+1)</option>
+            <option value="-1">Inhibitory (−1)</option>
+          </select>
+        </label>
+        <label style="font-size:0.8rem;color:var(--text-muted);font-weight:600;">
+          Response:
+          <select id="selResponse">
+            <option value="peak">Gaussian Peak</option>
+            <option value="linear">Linear</option>
+            <option value="inverse">Inverse 1/(1+S/a)</option>
+            <option value="step">Heaviside Step</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="sliders-grid" id="slidersGrid">
+        <div class="slider-row" data-group="sensor">
+          <label>Peak / Threshold (a) <span class="val" id="valPeakAt">4.0</span></label>
+          <input type="range" id="slPeakAt" min="0.8" max="9.5" step="0.1" value="4.0">
+        </div>
+        <div class="slider-row" data-group="sensor">
+          <label>Peak Width (σ) <span class="val" id="valPeakWidth">1.50</span></label>
+          <input type="range" id="slPeakWidth" min="0.3" max="4.5" step="0.05" value="1.5">
+        </div>
+        <div class="slider-row" data-group="motor">
+          <label>Motor Gain (g) <span class="val" id="valGain">6.0</span></label>
+          <input type="range" id="slGain" min="0.2" max="12.0" step="0.1" value="6.0">
+        </div>
+        <div class="slider-row" data-group="motor">
+          <label>Base Speed (v₀) <span class="val" id="valBaseSpeed">2.0</span></label>
+          <input type="range" id="slBaseSpeed" min="0.0" max="7.0" step="0.1" value="2.0">
+        </div>
+        <div class="slider-row" data-group="lamp">
+          <label>Lamp Intensity (I₀) <span class="val" id="valIntensity">10.0</span></label>
+          <input type="range" id="slIntensity" min="2.0" max="22.0" step="0.2" value="10.0">
+        </div>
+        <div class="slider-row" data-group="lamp">
+          <label>Lamp Falloff (ℓ) <span class="val" id="valFalloff">15.0</span></label>
+          <input type="range" id="slFalloff" min="6.0" max="28.0" step="0.5" value="15.0">
+        </div>
+        <div class="slider-row" data-group="ftle">
+          <label>FTLE Horizon (T s) <span class="val" id="valHorizon">9.0</span></label>
+          <input type="range" id="slHorizon" min="2.0" max="18.0" step="0.5" value="9.0">
+        </div>
+        <div class="slider-row" data-group="caudate" style="display:none">
+          <label>Caudate Rate (α) <span class="val" id="valCaudateRate">0.50</span></label>
+          <input type="range" id="slCaudateRate" min="0.0" max="2.5" step="0.02" value="0.50">
+        </div>
+        <div class="slider-row" data-group="caudate" style="display:none">
+          <label>Caudate Target (A*) <span class="val" id="valCaudateTarget">1.00</span></label>
+          <input type="range" id="slCaudateTarget" min="0.2" max="4.5" step="0.1" value="1.0">
+        </div>
+        <div class="slider-row" data-group="caudate" style="display:none">
+          <label>Threshold Jitter <span class="val" id="valJitter">0.30</span></label>
+          <input type="range" id="slJitter" min="0.0" max="0.8" step="0.02" value="0.30">
+        </div>
+      </div>
+    </div>
+
+    <aside class="notes-card">
+      <h3>
+        <span id="noteHeading">Professor's Field Note</span>
+        <span style="font-size:0.72rem;color:var(--text-dim);font-weight:500;">Live Analysis</span>
+      </h3>
+      <p id="noteBody"></p>
+      <div class="formula-box" id="noteFormula"></div>
+    </aside>
+  </section>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================================
+ * 1. EXACT BRAITENBERG MATHEMATICAL & KINEMATIC KERNEL
+ * Matches braitenberg/world.py, braitenberg/definition.py, braitenberg/vehicle.py
+ * ============================================================================ */
+
+const TWO_PI = Math.PI * 2;
+
+function wrapPi(angle) {
+  let a = (angle + Math.PI) % TWO_PI;
+  if (a < 0) a += TWO_PI;
+  return a - Math.PI;
+}
+
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return function () {
+    t += 0x6D2B79F5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function torusDelta(dx, dy, W, H, wrap) {
+  if (wrap) {
+    dx = ((dx + 0.5 * W) % W + W) % W - 0.5 * W;
+    dy = ((dy + 0.5 * H) % H + H) % H - 0.5 * H;
+  }
+  return [dx, dy];
+}
+
+function stimulusAt(x, y, sources, W, H, wrap) {
+  let total = 0.0;
+  for (let i = 0; i < sources.length; i++) {
+    const s = sources[i];
+    if (s.active === false) continue;
+    let dx = x - s.x;
+    let dy = y - s.y;
+    if (wrap) {
+      dx = ((dx + 0.5 * W) % W + W) % W - 0.5 * W;
+      dy = ((dy + 0.5 * H) % H + H) % H - 0.5 * H;
+    }
+    const f2 = s.falloff * s.falloff;
+    total += s.intensity / (1.0 + (dx * dx + dy * dy) / f2);
+  }
+  return total;
+}
+
+function sensorResponse(reading, type, at, width, height) {
+  if (type === "peak") {
+    const z = (reading - at) / Math.max(width, 1e-6);
+    return height * Math.exp(-0.5 * z * z);
+  }
+  if (type === "step") {
+    return reading >= at ? height : 0.0;
+  }
+  if (type === "inverse") {
+    return height * at / (at + Math.max(reading, 0.0));
+  }
+  return reading;
+}
+
+// Body coordinates (+x right, +y forward) -> World coordinates (world.py / vehicle.py lines 198-204)
+function bodyToWorld(x, y, heading, bx, by, halfWidth, halfLength) {
+  const c = Math.cos(heading);
+  const s = Math.sin(heading);
+  const sx = bx * halfWidth;
+  const sy = by * halfLength;
+  return [x + sy * c + sx * s, y + sy * s - sx * c];
+}
+
+// Instantaneous memoryless 2-sensor differential-drive kinematics (v, omega, vL, vR, sL, sR)
+function memorylessKinematics(x, y, heading, params, sources, W, H, wrap) {
+  const hw = 2.0, hl = 2.0; // size = 4 => half_width = 2, half_length = 2
+  const c = Math.cos(heading), s = Math.sin(heading);
+  // left_eye at [-0.9, 0.9] -> (-1.8, +1.8); right_eye at [0.9, 0.9] -> (+1.8, +1.8)
+  const lx = x + 1.8 * c - 1.8 * s;
+  const ly = y + 1.8 * s + 1.8 * c;
+  const rx = x + 1.8 * c + 1.8 * s;
+  const ry = y + 1.8 * s - 1.8 * c;
+
+  const readL = stimulusAt(lx, ly, sources, W, H, wrap);
+  const readR = stimulusAt(rx, ry, sources, W, H, wrap);
+
+  const outL = sensorResponse(readL, params.responseType, params.peakAt, params.peakWidth, 1.0);
+  const outR = sensorResponse(readR, params.responseType, params.peakAt, params.peakWidth, 1.0);
+
+  const inL = params.wiring === "crossed" ? outR : outL;
+  const inR = params.wiring === "crossed" ? outL : outR;
+
+  const vL = Math.min(Math.max(params.baseSpeed + params.gain * params.sign * inL, 0.0), params.maxSpeed);
+  const vR = Math.min(Math.max(params.baseSpeed + params.gain * params.sign * inR, 0.0), params.maxSpeed);
+
+  // left_motor at [-0.5, -0.6], right_motor at [0.5, -0.6] => x = +-1.0 => sxx = 2.0
+  const speed = 0.5 * (vL + vR);
+  const turnRate = 0.5 * (vR - vL);
+  return { speed, turnRate, vL, vR, readL, readR, outL, outR };
+}
+
+// Exact SO(2)-reduced cylindrical ODE around a single source at (0,0):
+// Place vehicle at (-r, 0) so source is at +x direction; bearing psi = 0 - heading => heading = -psi!
+function polarDerivatives(r, psi, params, intensity, falloff) {
+  const singleSource = [{ x: 0.0, y: 0.0, intensity, falloff, active: true }];
+  const heading = -psi;
+  const kin = memorylessKinematics(-r, 0.0, heading, params, singleSource, 10000, 10000, false);
+  const rSafe = Math.max(r, 0.35);
+  const dr = -kin.speed * Math.cos(psi);
+  const dpsi = (kin.speed / rSafe) * Math.sin(psi) - kin.turnRate;
+  return { dr, dpsi, speed: kin.speed, turnRate: kin.turnRate };
+}
+
+/* ============================================================================
+ * 2. VEHICLE 5 MOTH (9-UNIT LATCHING CIRCUIT) & VEHICLE 12 DAYDREAMER (RING)
+ * ============================================================================ */
+
+function createMothBrain() {
+  // 9 threshold units with 1-step delay (0.05s; when sub-stepping dt=0.01s, delay=5 steps)
+  return {
+    delaySteps: 5,
+    tick: 0,
+    // Ring buffers of length 6 for delayed outputs
+    buf: {
+      left_brighter: new Float32Array(6),
+      right_brighter: new Float32Array(6),
+      pain: new Float32Array(6),
+      near: new Float32Array(6),
+      burned: new Float32Array(6),
+      seek_left: new Float32Array(6),
+      seek_right: new Float32Array(6),
+      flee_left: new Float32Array(6),
+      flee_right: new Float32Array(6),
+    },
+    histEyeL: new Float32Array(5),
+    histEyeR: new Float32Array(5),
+    out: {
+      left_brighter: 0, right_brighter: 0, pain: 0, near: 0, burned: 0,
+      seek_left: 0, seek_right: 0, flee_left: 0, flee_right: 0
+    },
+    burnedLatched: false
+  };
+}
+
+function stepMothSubstep(p, sources, W, H, wrap, dtSub, painThresh, nearThresh, baseSpeed, gain, maxSpeed) {
+  const c = Math.cos(p.heading), s = Math.sin(p.heading);
+  const lx = p.x + 1.8 * c - 1.8 * s, ly = p.y + 1.8 * s + 1.8 * c;
+  const rx = p.x + 1.8 * c + 1.8 * s, ry = p.y + 1.8 * s - 1.8 * c;
+  const eL = stimulusAt(lx, ly, sources, W, H, wrap);
+  const eR = stimulusAt(rx, ry, sources, W, H, wrap);
+
+  const b = p.moth;
+  const D = b.delaySteps; // 5 steps at dt=0.01 => 0.05s delay
+  const idxOut = ((b.tick - D) % 6 + 6) % 6;
+  for (const k in b.out) b.out[k] = b.buf[k][idxOut];
+
+  const hIdx = b.tick % D;
+  b.histEyeL[hIdx] = eL;
+  b.histEyeR[hIdx] = eR;
+
+  // Simultaneity window max over last D steps
+  const valid = Math.min(b.tick + 1, D);
+  let maxEL = -1e9, maxER = -1e9;
+  const maxU = {};
+  for (const k in b.out) maxU[k] = 0;
+
+  for (let m = 0; m < valid; m++) {
+    const hi = ((b.tick - m) % D + D) % D;
+    if (b.histEyeL[hi] > maxEL) maxEL = b.histEyeL[hi];
+    if (b.histEyeR[hi] > maxER) maxER = b.histEyeR[hi];
+    const bi = ((b.tick - D - m) % 6 + 6) % 6;
+    if (b.tick - m >= D) {
+      for (const k in b.out) {
+        if (b.buf[k][bi] > maxU[k]) maxU[k] = b.buf[k][bi];
+      }
+    }
+  }
+
+  // Note: inhibitory inputs also take max of positive signal then multiply by -1 (vehicle.py line 251-252)
+  const actLB = (maxEL - maxER >= 0.05) ? 1 : 0;
+  const actRB = (maxER - maxEL >= 0.05) ? 1 : 0;
+  const actPain = (maxEL + maxER >= painThresh) ? 1 : 0;
+  const actNear = (maxEL + maxER >= nearThresh) ? 1 : 0;
+  const actBurned = (maxU.pain + maxU.burned >= 1) ? 1 : 0;
+  const actSeekL = (maxU.left_brighter - maxU.burned >= 1) ? 1 : 0;
+  const actSeekR = (maxU.right_brighter - maxU.burned >= 1) ? 1 : 0;
+  const actFleeL = (maxU.left_brighter + maxU.burned + maxU.near >= 3) ? 1 : 0;
+  const actFleeR = (maxU.right_brighter + maxU.burned + maxU.near >= 3) ? 1 : 0;
+
+  const writeIdx = b.tick % 6;
+  b.buf.left_brighter[writeIdx] = actLB;
+  b.buf.right_brighter[writeIdx] = actRB;
+  b.buf.pain[writeIdx] = actPain;
+  b.buf.near[writeIdx] = actNear;
+  b.buf.burned[writeIdx] = actBurned;
+  b.buf.seek_left[writeIdx] = actSeekL;
+  b.buf.seek_right[writeIdx] = actSeekR;
+  b.buf.flee_left[writeIdx] = actFleeL;
+  b.buf.flee_right[writeIdx] = actFleeR;
+  if (actBurned || b.out.burned) b.burnedLatched = true;
+  b.tick++;
+
+  const vL = Math.min(Math.max(baseSpeed + gain * (b.out.seek_right + b.out.flee_left), 0.0), maxSpeed);
+  const vR = Math.min(Math.max(baseSpeed + gain * (b.out.seek_left + b.out.flee_right), 0.0), maxSpeed);
+  p.speed = 0.5 * (vL + vR);
+  p.turnRate = 0.5 * (vR - vL);
+  p.heading += p.turnRate * dtSub;
+  p.ux += p.speed * Math.cos(p.heading) * dtSub;
+  p.uy += p.speed * Math.sin(p.heading) * dtSub;
+  p.x = wrap ? ((p.ux % W) + W) % W : p.ux;
+  p.y = wrap ? ((p.uy % H) + H) % H : p.uy;
+  p.lastReading = 0.5 * (eL + eR);
+}
+
+function createDaydreamerBrain(seed, jitterAmp, baseThreshold = 2.0, caudateEnabled = true) {
+  const rng = mulberry32(seed);
+  const jitters = new Float64Array(8);
+  for (let k = 0; k < 8; k++) {
+    jitters[k] = jitterAmp > 0 ? (rng() * 2.0 - 1.0) * jitterAmp : 0.0;
+  }
+  // dt = 0.05s; idea delay = 1.0s = 20 steps; awake/caudate delay = 0.05s = 1 step
+  return {
+    tick: 0,
+    baseThreshold,
+    caudateEnabled,
+    jitters,
+    offset: 0.0,
+    visibleOffset: 0.0,
+    activity: 0.0,
+    wakeAct: new Float32Array(21),
+    awakeAct: new Float32Array(2),
+    ideaAct: Array.from({ length: 8 }, () => new Float32Array(21)),
+    // History of outputs for 20-step simultaneity window
+    histWake: new Float32Array(20),
+    histIdea: Array.from({ length: 8 }, () => new Float32Array(20)),
+    ideaOut: new Float32Array(8),
+    ideaImmediate: new Float32Array(8),
+    orderHistory: [],     // {re, im, R, phi}
+    traceActivity: [],    // recent activity values
+    traceThreshold: [],   // recent effective base+offset values
+  };
+}
+
+function stepDaydreamer(p, dt, rate, target, gain, sources, W, H, wrap) {
+  const d = p.dream;
+  const t = d.tick;
+  const wakeOut = t >= 20 ? d.wakeAct[(t - 20) % 21] : 0.0;
+  const awakeOut = t >= 1 ? d.awakeAct[(t - 1) % 2] : 0.0;
+  for (let k = 0; k < 8; k++) {
+    d.ideaOut[k] = t >= 20 ? d.ideaAct[k][(t - 20) % 21] : 0.0;
+  }
+  d.visibleOffset = d.caudateEnabled ? d.offset : 0.0;
+
+  // Record current outputs into 20-step simultaneity history
+  const h20 = t % 20;
+  d.histWake[h20] = wakeOut;
+  for (let k = 0; k < 8; k++) d.histIdea[k][h20] = d.ideaOut[k];
+
+  const valid20 = Math.min(t + 1, 20);
+  let maxWake = 0.0;
+  const maxIdea = new Float32Array(8);
+  for (let m = 0; m < valid20; m++) {
+    const idx = ((t - m) % 20 + 20) % 20;
+    if (d.histWake[idx] > maxWake) maxWake = d.histWake[idx];
+    for (let k = 0; k < 8; k++) {
+      if (d.histIdea[k][idx] > maxIdea[k]) maxIdea[k] = d.histIdea[k][idx];
+    }
+  }
+
+  // Optional external light distraction (Distracted Dreamer mode if sources exist!)
+  let eyeDriveL = 0.0, eyeDriveR = 0.0, eyeActiveCount = 0.0;
+  if (sources.length > 0) {
+    const c = Math.cos(p.heading), s = Math.sin(p.heading);
+    const lx = p.x + 1.8 * c - 1.2 * s, ly = p.y + 1.8 * s + 1.2 * c;
+    const rx = p.x + 1.8 * c + 1.2 * s, ry = p.y + 1.8 * s - 1.2 * c;
+    const rL = stimulusAt(lx, ly, sources, W, H, wrap);
+    const rR = stimulusAt(rx, ry, sources, W, H, wrap);
+    const eyeThresh = 4.0 + d.visibleOffset;
+    if (rL >= eyeThresh) { eyeDriveR = 1.0; eyeActiveCount += 1.0; }
+    if (rR >= eyeThresh) { eyeDriveL = 1.0; eyeActiveCount += 1.0; }
+  }
+
+  // Compute new activations
+  // wake: delay 20, threshold 0, inhibited by awake (over 20-step window; once awake turns on it stays on)
+  const wakeNew = (-awakeOut >= 0.0 && t < 21) ? 1.0 : 0.0;
+  const awakeNew = (wakeOut + awakeOut >= 1.0) ? 1.0 : 0.0;
+  d.wakeAct[t % 21] = wakeNew;
+  d.awakeAct[t % 2] = awakeNew;
+
+  let actSum = eyeActiveCount;
+  for (let k = 0; k < 8; k++) {
+    const prev1 = (k + 7) % 8;
+    const prev3 = (k + 5) % 8;
+    let sum = maxIdea[prev1] + maxIdea[prev3] - maxIdea[k];
+    if (k === 0) sum += maxWake;
+    const effThresh = d.baseThreshold + d.jitters[k] + d.visibleOffset;
+    const ak = sum >= effThresh ? 1.0 : 0.0;
+    d.ideaImmediate[k] = ak;
+    d.ideaAct[k][t % 21] = ak;
+    actSum += ak;
+  }
+
+  d.activity = actSum;
+  if (d.caudateEnabled) {
+    d.offset += rate * (actSum - target) * dt;
+  }
+
+  // Complex Kuramoto/Strogatz ring order parameter Z(t) = (1/8) sum_k out_k exp(i 2pi k / 8)
+  let re = 0.0, im = 0.0;
+  for (let k = 0; k < 8; k++) {
+    const w = 0.65 * d.ideaOut[k] + 0.35 * d.ideaImmediate[k];
+    const ang = (TWO_PI * k) / 8.0;
+    re += w * Math.cos(ang);
+    im += w * Math.sin(ang);
+  }
+  re /= 8.0;
+  im /= 8.0;
+  const R = Math.hypot(re, im);
+  const phi = Math.atan2(im, re);
+  d.orderHistory.push({ re, im, R, phi });
+  if (d.orderHistory.length > 360) d.orderHistory.shift();
+
+  d.traceActivity.push(actSum);
+  d.traceThreshold.push(d.baseThreshold + d.visibleOffset);
+  if (d.traceActivity.length > 260) {
+    d.traceActivity.shift();
+    d.traceThreshold.shift();
+  }
+
+  d.tick++;
+
+  // Motors at [-0.8, -0.75] and [0.8, -0.75] => x = +-1.6 => sxx = 5.12 => omega = 1.6*(vR - vL)/5.12 = (vR - vL)/3.2
+  const o = d.ideaOut;
+  const inL = o[0] + o[2] + o[4] + o[6] + eyeDriveL;
+  const inR = o[0] + o[1] + o[4] + o[5] + eyeDriveR;
+  const vL = Math.min(Math.max(gain * inL, 0.0), 5.0);
+  const vR = Math.min(Math.max(gain * inR, 0.0), 5.0);
+  p.speed = 0.5 * (vL + vR);
+  p.turnRate = (vR - vL) / 3.2;
+  p.heading += p.turnRate * dt;
+  p.ux += p.speed * Math.cos(p.heading) * dt;
+  p.uy += p.speed * Math.sin(p.heading) * dt;
+  p.x = wrap ? ((p.ux % W) + W) % W : p.ux;
+  p.y = wrap ? ((p.uy % H) + H) % H : p.uy;
+}
+
+/* ============================================================================
+ * 3. REAL-TIME UNWRAPPED FTLE & CAPTURE BASIN ENGINE
+ * Computes forward Cauchy-Green strain eigenvalues on unwrapped coordinates
+ * so periodic torus boundaries never introduce spurious FTLE seam artifacts!
+ * ============================================================================ */
+
+const ftleCache = {
+  dirty: true,
+  refineTimer: null,
+  nx: 0,
+  ny: 0,
+  ftle: null,
+  basin: null,
+  maxFtle: 1.0,
+  offscreen: document.createElement("canvas")
+};
+
+function markFieldDirty(immediateCoarse = true) {
+  ftleCache.dirty = true;
+  if (state.showFTLE || state.showBasins) {
+    computeFTLEGrid(immediateCoarse ? 54 : 104);
+    clearTimeout(ftleCache.refineTimer);
+    if (immediateCoarse) {
+      ftleCache.refineTimer = setTimeout(() => {
+        if (state.showFTLE || state.showBasins) computeFTLEGrid(108);
+      }, 140);
+    }
+  }
+}
+
+function computeFTLEGrid(res) {
+  const W = state.arenaW, H = state.arenaH;
+  const sources = state.sources;
+  const nx = res, ny = res;
+  const N = nx * ny;
+  const ux = new Float64Array(N);
+  const uy = new Float64Array(N);
+  const th = new Float64Array(N);
+
+  // Centroid of active lamps for initial heading alignment ("toward_centroid")
+  let cx = 0.5 * W, cy = 0.5 * H;
+  if (sources.length > 0) {
+    let sx = 0, sy = 0;
+    for (const s of sources) { sx += s.x; sy += s.y; }
+    cx = sx / sources.length;
+    cy = sy / sources.length;
+  }
+
+  for (let j = 0; j < ny; j++) {
+    const y0 = ((j + 0.5) / ny) * H;
+    for (let i = 0; i < nx; i++) {
+      const x0 = ((i + 0.5) / nx) * W;
+      const k = j * nx + i;
+      ux[k] = x0;
+      uy[k] = y0;
+      const dx = cx - x0, dy = cy - y0;
+      th[k] = (dx * dx + dy * dy > 1e-6) ? Math.atan2(dy, dx) : 0.0;
+    }
+  }
+
+  const T = Math.max(state.ftleHorizon, 1.0);
+  const dtStep = res > 80 ? 0.12 : 0.20;
+  const nSteps = Math.max(4, Math.round(T / dtStep));
+  const p = state.params;
+  const isCrossed = p.wiring === "crossed";
+  const sign = p.sign;
+  const gain = p.gain;
+  const baseV = p.baseSpeed;
+  const maxV = p.maxSpeed;
+  const rType = p.responseType;
+  const pAt = p.peakAt;
+  const pW = Math.max(p.peakWidth, 1e-6);
+  const nSrc = sources.length;
+
+  for (let step = 0; step < nSteps; step++) {
+    for (let k = 0; k < N; k++) {
+      const x = ((ux[k] % W) + W) % W;
+      const y = ((uy[k] % H) + H) % H;
+      const h = th[k];
+      const c = Math.cos(h), s = Math.sin(h);
+      const lx = x + 1.8 * c - 1.8 * s, ly = y + 1.8 * s + 1.8 * c;
+      const rx = x + 1.8 * c + 1.8 * s, ry = y + 1.8 * s - 1.8 * c;
+
+      let readL = 0.0, readR = 0.0;
+      for (let m = 0; m < nSrc; m++) {
+        const src = sources[m];
+        let dxl = lx - src.x, dyl = ly - src.y;
+        dxl = ((dxl + 0.5 * W) % W + W) % W - 0.5 * W;
+        dyl = ((dyl + 0.5 * H) % H + H) % H - 0.5 * H;
+        let dxr = rx - src.x, dyr = ry - src.y;
+        dxr = ((dxr + 0.5 * W) % W + W) % W - 0.5 * W;
+        dyr = ((dyr + 0.5 * H) % H + H) % H - 0.5 * H;
+        const invF2 = 1.0 / (src.falloff * src.falloff);
+        readL += src.intensity / (1.0 + (dxl * dxl + dyl * dyl) * invF2);
+        readR += src.intensity / (1.0 + (dxr * dxr + dyr * dyr) * invF2);
+      }
+
+      let outL, outR;
+      if (rType === "peak") {
+        const zl = (readL - pAt) / pW, zr = (readR - pAt) / pW;
+        outL = Math.exp(-0.5 * zl * zl);
+        outR = Math.exp(-0.5 * zr * zr);
+      } else if (rType === "step") {
+        outL = readL >= pAt ? 1.0 : 0.0;
+        outR = readR >= pAt ? 1.0 : 0.0;
+      } else if (rType === "inverse") {
+        outL = pAt / (pAt + readL);
+        outR = pAt / (pAt + readR);
+      } else {
+        outL = readL;
+        outR = readR;
+      }
+
+      const inL = isCrossed ? outR : outL;
+      const inR = isCrossed ? outL : outR;
+      let vL = baseV + gain * sign * inL;
+      let vR = baseV + gain * sign * inR;
+      if (vL < 0) vL = 0; else if (vL > maxV) vL = maxV;
+      if (vR < 0) vR = 0; else if (vR > maxV) vR = maxV;
+
+      const sp = 0.5 * (vL + vR);
+      const om = 0.5 * (vR - vL);
+      const hMid = h + 0.5 * om * dtStep;
+      th[k] = h + om * dtStep;
+      ux[k] += sp * Math.cos(hMid) * dtStep;
+      uy[k] += sp * Math.sin(hMid) * dtStep;
+    }
+  }
+
+  const ftle = new Float32Array(N);
+  const basin = new Int16Array(N);
+  const dxGrid = W / nx;
+  const dyGrid = H / ny;
+  let maxVal = 1e-4;
+
+  for (let j = 0; j < ny; j++) {
+    const jm = j > 0 ? j - 1 : j;
+    const jp = j < ny - 1 ? j + 1 : j;
+    const invDy = 1.0 / ((jp - jm) * dyGrid);
+
+    for (let i = 0; i < nx; i++) {
+      const im = i > 0 ? i - 1 : i;
+      const ip = i < nx - 1 ? i + 1 : i;
+      const invDx = 1.0 / ((ip - im) * dxGrid);
+      const k = j * nx + i;
+
+      // Finite differences on UNWRAPPED final flow-map coordinates!
+      const j11 = (ux[j * nx + ip] - ux[j * nx + im]) * invDx;
+      const j21 = (uy[j * nx + ip] - uy[j * nx + im]) * invDx;
+      const j12 = (ux[jp * nx + i] - ux[jm * nx + i]) * invDy;
+      const j22 = (uy[jp * nx + i] - uy[jm * nx + i]) * invDy;
+
+      // Cauchy-Green tensor C = J^T J = [[c11, c12], [c12, c22]]
+      const c11 = j11 * j11 + j21 * j21;
+      const c12 = j11 * j12 + j21 * j22;
+      const c22 = j12 * j12 + j22 * j22;
+      const tr = c11 + c22;
+      const det = c11 * c22 - c12 * c12;
+      const disc = Math.sqrt(Math.max(0.25 * tr * tr - det, 0.0));
+      const lamMax = Math.max(0.5 * tr + disc, 1e-12);
+      const sigma = Math.max(0.0, Math.log(Math.sqrt(lamMax)) / T);
+      ftle[k] = sigma;
+      if (sigma > maxVal) maxVal = sigma;
+
+      // Capture basin classification against active sources
+      const xf = ((ux[k] % W) + W) % W;
+      const yf = ((uy[k] % H) + H) % H;
+      let bestIdx = -1, bestDist = 34.0;
+      for (let m = 0; m < nSrc; m++) {
+        const [ddx, ddy] = torusDelta(xf - sources[m].x, yf - sources[m].y, W, H, true);
+        const d = Math.hypot(ddx, ddy);
+        if (d < bestDist) { bestDist = d; bestIdx = m; }
+      }
+      basin[k] = bestIdx;
+    }
+  }
+
+  ftleCache.nx = nx;
+  ftleCache.ny = ny;
+  ftleCache.ftle = ftle;
+  ftleCache.basin = basin;
+  ftleCache.maxFtle = maxVal;
+  ftleCache.dirty = false;
+  bakeFTLEOffscreen();
+}
+
+const BASIN_PALETTE_COSMIC = [
+  [56, 189, 248],   // Lamp 0: cyan
+  [251, 113, 133],  // Lamp 1: coral
+  [251, 191, 36],   // Lamp 2: amber
+  [192, 132, 252],  // Lamp 3: violet
+  [52, 211, 153]    // Lamp 4: emerald
+];
+
+const BASIN_PALETTE_TEXTBOOK = [
+  [3, 105, 161],
+  [190, 18, 60],
+  [180, 83, 9],
+  [109, 40, 217],
+  [4, 120, 87]
+];
+
+function bakeFTLEOffscreen() {
+  const { nx, ny, ftle, basin, maxFtle, offscreen } = ftleCache;
+  if (!ftle) return;
+  offscreen.width = nx;
+  offscreen.height = ny;
+  const ctx = offscreen.getContext("2d");
+  const img = ctx.createImageData(nx, ny);
+  const data = img.data;
+  const cosmic = state.theme === "cosmic";
+  const bPal = cosmic ? BASIN_PALETTE_COSMIC : BASIN_PALETTE_TEXTBOOK;
+
+  for (let j = 0; j < ny; j++) {
+    // Flip y because canvas y=0 is top whereas world y=H is top
+    const rowCanvas = ny - 1 - j;
+    for (let i = 0; i < nx; i++) {
+      const k = j * nx + i;
+      const px = (rowCanvas * nx + i) * 4;
+      const u = Math.min(1.0, ftle[k] / Math.max(maxFtle * 0.88, 0.05));
+      const ridge = Math.pow(u, 1.35);
+
+      let r = cosmic ? 6 : 252;
+      let g = cosmic ? 8 : 251;
+      let b = cosmic ? 24 : 247;
+      let a = 0;
+
+      if (state.showBasins && basin[k] >= 0) {
+        const bc = bPal[basin[k] % bPal.length];
+        const mix = cosmic ? 0.24 : 0.18;
+        r = r * (1 - mix) + bc[0] * mix;
+        g = g * (1 - mix) + bc[1] * mix;
+        b = b * (1 - mix) + bc[2] * mix;
+        a = 215;
+      }
+
+      if (state.showFTLE) {
+        if (cosmic) {
+          // Abyssal indigo -> bioluminescent cyan -> solar gold -> white-hot crest
+          let fr, fg, fb;
+          if (ridge < 0.45) {
+            const s = ridge / 0.45;
+            fr = 8 + 38 * s;
+            fg = 16 + 150 * s;
+            fb = 42 + 195 * s;
+          } else if (ridge < 0.82) {
+            const s = (ridge - 0.45) / 0.37;
+            fr = 46 + 205 * s;
+            fg = 166 + 25 * s;
+            fb = 237 - 201 * s;
+          } else {
+            const s = (ridge - 0.82) / 0.18;
+            fr = 251 + 4 * s;
+            fg = 191 + 60 * s;
+            fb = 36 + 195 * s;
+          }
+          const w = Math.min(1.0, ridge * 1.15);
+          r = r * (1 - w) + fr * w;
+          g = g * (1 - w) + fg * w;
+          b = b * (1 - w) + fb * w;
+          a = Math.max(a, Math.round(45 + 205 * Math.min(1, ridge * 1.3)));
+        } else {
+          // Strogatz textbook charcoal ink ridges
+          const ink = Math.pow(ridge, 1.25);
+          r = r * (1 - 0.85 * ink) + 24 * (0.85 * ink);
+          g = g * (1 - 0.85 * ink) + 24 * (0.85 * ink);
+          b = b * (1 - 0.85 * ink) + 27 * (0.85 * ink);
+          a = Math.max(a, Math.round(235 * ink));
+        }
+      }
+
+      data[px] = r;
+      data[px + 1] = g;
+      data[px + 2] = b;
+      data[px + 3] = a;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+/* ============================================================================
+ * 4. APPLICATION STATE & 6 CURATED PRESETS
+ * ============================================================================ */
+
+const TRAIL_LEN = 72;
+
+const state = {
+  theme: "cosmic",
+  presetIndex: 0,
+  playing: true,
+  simTime: 0.0,
+  dt: 0.05,
+  arenaW: 120,
+  arenaH: 120,
+  wrap: true,
+  vehicleCode: "4a",
+  params: {
+    wiring: "crossed",
+    sign: 1,
+    responseType: "peak",
+    peakAt: 4.0,
+    peakWidth: 1.5,
+    gain: 6.0,
+    baseSpeed: 2.0,
+    maxSpeed: 12.0,
+    caudateRate: 0.5,
+    caudateTarget: 1.0,
+    jitter: 0.3
+  },
+  ftleHorizon: 9.0,
+  showFTLE: false,
+  showBasins: false,
+  showFlow: true,
+  showTrails: true,
+  sources: [],
+  particles: [],
+  dragLampIdx: -1,
+  launchDrag: null
+};
+
+function makeParticle(x, y, headingDeg, hueIdx = 0, seed = 0, customParams = null, tag = "") {
+  const rad = (headingDeg * Math.PI) / 180.0;
+  const p = {
+    x, y,
+    ux: x, uy: y,
+    heading: rad,
+    speed: 0.0,
+    turnRate: 0.0,
+    hueIdx,
+    tag,
+    customParams,
+    lastReading: 0.0,
+    trailX: new Float64Array(TRAIL_LEN),
+    trailY: new Float64Array(TRAIL_LEN),
+    trailH: new Float64Array(TRAIL_LEN),
+    trailHead: 0,
+    trailCount: 0,
+    moth: null,
+    dream: null
+  };
+  p.trailX[0] = x;
+  p.trailY[0] = y;
+  p.trailH[0] = rad;
+  p.trailCount = 1;
+  if (state.vehicleCode === "5") {
+    p.moth = createMothBrain();
+  } else if (state.vehicleCode === "12") {
+    p.dream = createDaydreamerBrain(seed, state.params.jitter, 2.0, true);
+  }
+  return p;
+}
+
+function recordTrail(p) {
+  p.trailHead = (p.trailHead + 1) % TRAIL_LEN;
+  p.trailX[p.trailHead] = p.ux;
+  p.trailY[p.trailHead] = p.uy;
+  p.trailH[p.trailHead] = p.heading;
+  if (p.trailCount < TRAIL_LEN) p.trailCount++;
+}
+
+const PRESETS = [
+  {
+    act: "Act I · SO(2) Limit Cycle",
+    title: "Supercritical Limit Cycle (4a Orbiter)",
+    equation: "ṙ = −v(r, ψ) cos ψ ,   ψ̇ = (v/r) sin ψ − ω(r, ψ)",
+    noteTitle: "Act I — Birth of a Biological Orbit",
+    noteBody: "Around a single isotropic lamp, translational and rotational symmetry collapse the 3D arena state (x, y, θ) onto a 2D cylinder (r, ψ). Because Vehicle 4a wires Gaussian-peaked sensors contralaterally, steering reverses sign across S(r*) = a: far away it steers inward; too close it steers outward. In the arena this births an isolated circular limit cycle at r_lc ≈ 19.9, which quotients on the (r, ψ) cylinder to a symmetric pair of stable spiral relative equilibria at (r_lc, ±π/2)!",
+    noteFormula: "S(r*) = I₀ / (1 + (r*/ℓ)²) = a   ⇒   ∂ω/∂ψ flips sign across r = r*",
+    setup() {
+      state.arenaW = 120; state.arenaH = 120;
+      applyVehicleArchetype("4a");
+      state.sources = [{ x: 60, y: 60, intensity: 10.0, falloff: 15.0, active: true }];
+      state.showFTLE = false; state.showBasins = false; state.showFlow = true;
+      state.particles = [
+        makeParticle(24, 52, 10, 0),
+        makeParticle(60, 66, 0, 1),
+        makeParticle(96, 72, 165, 2),
+        makeParticle(54, 20, 75, 3)
+      ];
+    }
+  },
+  {
+    act: "Act I · Fixed Points & Saddles",
+    title: "Homoclinic/Saddle Escape vs Love (2a–3b)",
+    equation: "λ_ψ(0) = v(r,0)/r − ∂ω/∂ψ|_{ψ=0}",
+    noteTitle: "Act I — Crossed vs Uncrossed Eigenvalue Flip",
+    noteBody: "In Vehicle 3a (Love), ipsilateral inhibition slows the nearer wheel, turning the vehicle straight into the lamp (λ_ψ < 0 at ψ = 0) until motor clamping v = 0 creates a continuum ring of stable equilibria facing the light! Switch Vehicle Architecture in the dock between 3a Love, 2a Fear, 2b Aggression, and 3b Explorer to watch the fixed points on ψ = 0 and ψ = ±π swap stability instantaneously!",
+    noteFormula: "3a Love: v(r) = max(0, v₀ − g S(r)) = 0  for  r ≤ ℓ √(g I₀ / v₀ − 1)",
+    setup() {
+      state.arenaW = 100; state.arenaH = 100;
+      applyVehicleArchetype("3a");
+      state.sources = [{ x: 50, y: 50, intensity: 10.0, falloff: 15.0, active: true }];
+      state.showFTLE = false; state.showBasins = false; state.showFlow = true;
+      state.particles = [];
+      for (let k = 0; k < 12; k++) {
+        const ang = (TWO_PI * k) / 12;
+        state.particles.push(makeParticle(
+          50 + 38 * Math.cos(ang),
+          50 + 38 * Math.sin(ang),
+          (ang * 180 / Math.PI) + 145,
+          k % 5
+        ));
+      }
+    }
+  },
+  {
+    act: "Act II · Lagrangian Chaos",
+    title: "Three-Body Lamp Chaos & FTLE Ridges",
+    equation: "σ_T(x₀) = (1 / |T|) ln √λ_max( DΦ_Tᵀ DΦ_T )",
+    noteTitle: "Act II — Broken Symmetry & Three-Ring Pinball",
+    noteBody: "Adding a second and third lamp shatters SO(2) symmetry, lifting the flow into a genuine 3D system on ℝ² × S¹. Just like the classical 3-disk pinball in nonlinear physics, three competing preferred-intensity rings create hyperbolic saddle separatrices. Bright gold FTLE ridges reveal the hidden Lagrangian Coherent Structures: vehicles launched 2° apart at [80, 59] split onto single-lamp orbits, figure-eight loops, and chaotic grand tours!",
+    noteFormula: "Equilateral 3-lamp web: headings 84°, 86°, 88°, 92°, 94°, 96° diverge exponentially",
+    setup() {
+      state.arenaW = 160; state.arenaH = 160;
+      applyVehicleArchetype("4a");
+      state.sources = [
+        { x: 80.0, y: 122.0, intensity: 9.0, falloff: 12.5, active: true },
+        { x: 43.63, y: 59.0, intensity: 9.0, falloff: 12.5, active: true },
+        { x: 116.37, y: 59.0, intensity: 9.0, falloff: 12.5, active: true }
+      ];
+      state.ftleHorizon = 8.5;
+      state.showFTLE = true; state.showBasins = false; state.showFlow = false;
+      const headings = [84, 86, 88, 92, 94, 96];
+      state.particles = headings.map((h, i) => makeParticle(80.0, 59.0, h, i));
+    }
+  },
+  {
+    act: "Act II · Separatrix Splitting",
+    title: "Twin-Lamp Fractal Capture Basins",
+    equation: "Wˢ(p_saddle) separates Left & Right Lamp Attractors",
+    noteTitle: "Act II — Stable Manifolds as Basin Boundaries",
+    noteBody: "Between twin lamps at [30, 50] and [70, 50], the symmetry line x = 50 contains a saddle equilibrium whose stable manifold partitions the arena into competing capture basins. For Vehicle 3a (Love) the basin boundary is a smooth razor separatrix; switch the Vehicle dropdown to 4a Orbiter and watch the capture basins fold into intricate Wada-like filaments wrapped around the FTLE ridges!",
+    noteFormula: "x₀ = 50 ± ε  ⇒  exponential divergence along Wᵘ(p_saddle)",
+    setup() {
+      state.arenaW = 100; state.arenaH = 100;
+      applyVehicleArchetype("3a");
+      state.sources = [
+        { x: 30.0, y: 50.0, intensity: 10.0, falloff: 15.0, active: true },
+        { x: 70.0, y: 50.0, intensity: 10.0, falloff: 15.0, active: true }
+      ];
+      state.ftleHorizon = 9.0;
+      state.showFTLE = true; state.showBasins = true; state.showFlow = true;
+      const fan = [
+        [47.0, 26, 94.5], [48.6, 26, 92.0], [49.6, 26, 90.6],
+        [50.4, 26, 89.4], [51.4, 26, 88.0], [53.0, 26, 85.5]
+      ];
+      state.particles = fan.map(([x, y, h], i) => makeParticle(x, y, h, i < 3 ? 0 : 1));
+    }
+  },
+  {
+    act: "Act III · Memory as Dimension",
+    title: "Moth Fold/Latch Hysteresis Catastrophe (V5)",
+    equation: "b(t + τ) = Θ( pain(t) + b(t) − 1 ) ∈ {0, 1}",
+    noteTitle: "Act III — Why History Requires Extra Phase Dimensions",
+    noteBody: "A memoryless vehicle on ℝ² × S¹ can never cross its own state-space trajectory differently the second time around—uniqueness of ODE solutions forbids it! Braitenberg's Vehicle 5 (Moth) adds a recurrent threshold latch (`burned`). Before the burn (b = 0, cyan), it dives straight into the lamp. Crossing `pain ≥ 18` triggers an irreversible fold catastrophe jump to sheet b = 1 (coral): forever after, it turns away at the outer `near ≥ 10` halo!",
+    noteFormula: "Phase space lifts: (x, y, θ)  ↦  (x, y, θ) × {b = 0 (seek), b = 1 (flee)}",
+    setup() {
+      state.arenaW = 100; state.arenaH = 100;
+      applyVehicleArchetype("5");
+      state.sources = [
+        { x: 30.0, y: 50.0, intensity: 10.0, falloff: 15.0, active: true },
+        { x: 70.0, y: 50.0, intensity: 10.0, falloff: 15.0, active: true }
+      ];
+      state.showFTLE = false; state.showBasins = false; state.showFlow = true;
+      state.particles = [
+        makeParticle(10, 20, 45, 0),
+        makeParticle(88, 82, 215, 1),
+        makeParticle(50, 14, 98, 2)
+      ];
+    }
+  },
+  {
+    act: "Act IV · Homeostatic Criticality",
+    title: "Daydreamer Caudate Criticality Ring (V12)",
+    equation: "τ_c ϑ̇ = α ( ∑ a_k(t) − A* ) ,   Z(t) = (1/8) ∑ y_k e^{i 2πk/8}",
+    noteTitle: "Act IV — Trains of Thought at the Edge of Chaos",
+    noteBody: "Vehicle 12 sits in total darkness with zero sensors, yet traces intricate geometric dances! Eight cortical 'idea' units excite k+1 and k+3 around a ring—an explosive supercritical branching graph. The caudate nucleus integrates total activity A(t) and adjusts everyone's threshold offset ϑ(t) toward target A* = 1. Use the quick-regime buttons or Caudate sliders to witness Silent extinction, Edge-of-Chaos trains of thought, and Epileptic flooding!",
+    noteFormula: "eff_threshold_k(t) = 2.0 + jitter_k + offset(t) ,   d(offset)/dt = rate · (A − target)",
+    setup() {
+      state.arenaW = 100; state.arenaH = 100;
+      applyVehicleArchetype("12");
+      state.sources = []; // Pure dark arena! User can Shift+Click to add a distracting lamp!
+      state.showFTLE = false; state.showBasins = false; state.showFlow = false;
+      state.particles = [makeParticle(50, 50, 0, 0, 0)];
+    }
+  }
+];
+
+function applyVehicleArchetype(code) {
+  state.vehicleCode = code;
+  const p = state.params;
+  if (code === "4a") {
+    p.wiring = "crossed"; p.sign = 1; p.responseType = "peak";
+    p.peakAt = 4.0; p.peakWidth = 1.5; p.gain = 6.0; p.baseSpeed = 2.0; p.maxSpeed = 12.0;
+  } else if (code === "4b") {
+    p.wiring = "straight"; p.sign = 1; p.responseType = "step";
+    p.peakAt = 4.0; p.peakWidth = 1.0; p.gain = 6.0; p.baseSpeed = 2.0; p.maxSpeed = 8.0;
+  } else if (code === "3a") {
+    p.wiring = "straight"; p.sign = -1; p.responseType = "linear";
+    p.peakAt = 4.0; p.peakWidth = 1.5; p.gain = 0.6; p.baseSpeed = 5.0; p.maxSpeed = 5.0;
+  } else if (code === "3b") {
+    p.wiring = "crossed"; p.sign = -1; p.responseType = "linear";
+    p.peakAt = 4.0; p.peakWidth = 1.5; p.gain = 0.6; p.baseSpeed = 5.0; p.maxSpeed = 5.0;
+  } else if (code === "2a") {
+    p.wiring = "straight"; p.sign = 1; p.responseType = "linear";
+    p.peakAt = 4.0; p.peakWidth = 1.5; p.gain = 1.0; p.baseSpeed = 0.0; p.maxSpeed = 10.0;
+  } else if (code === "2b") {
+    p.wiring = "crossed"; p.sign = 1; p.responseType = "linear";
+    p.peakAt = 4.0; p.peakWidth = 1.5; p.gain = 1.0; p.baseSpeed = 0.0; p.maxSpeed = 10.0;
+  } else if (code === "3inv") {
+    p.wiring = "straight"; p.sign = 1; p.responseType = "inverse";
+    p.peakAt = 3.5; p.peakWidth = 1.5; p.gain = 5.5; p.baseSpeed = 0.2; p.maxSpeed = 6.0;
+  } else if (code === "5") {
+    p.wiring = "crossed"; p.sign = 1; p.responseType = "linear";
+    p.peakAt = 18.0; p.peakWidth = 10.0; p.gain = 3.0; p.baseSpeed = 3.0; p.maxSpeed = 6.0;
+  } else if (code === "12") {
+    p.gain = 2.0; p.baseSpeed = 0.0; p.maxSpeed = 5.0;
+    p.caudateRate = 0.50; p.caudateTarget = 1.0; p.jitter = 0.30;
+  }
+  syncControlsFromState();
+}
+
+/* ============================================================================
+ * 5. SWARM SPAWNER (800 GLOWING COMET PARTICLES AT 60 FPS!)
+ * ============================================================================ */
+
+function releaseSwarm(count = 800) {
+  const W = state.arenaW, H = state.arenaH;
+  const rng = mulberry32(2026);
+  const next = [];
+
+  if (state.vehicleCode === "12") {
+    // For Daydreamer: spawn 24 deterministic thought-train dreamers with distinct jitter seeds!
+    const nDream = 24;
+    for (let i = 0; i < nDream; i++) {
+      const ang = (TWO_PI * i) / nDream;
+      const p = makeParticle(
+        0.5 * W + 12 * Math.cos(ang),
+        0.5 * H + 12 * Math.sin(ang),
+        (ang * 180) / Math.PI,
+        i % 5,
+        i
+      );
+      next.push(p);
+    }
+    state.particles = next;
+    return;
+  }
+
+  for (let i = 0; i < count; i++) {
+    let x, y, hDeg;
+    if (state.presetIndex === 2 && state.sources.length >= 3) {
+      // Saddle-ring + arena ensemble for 3-body chaos
+      if (i < count * 0.45) {
+        const frac = i / (count * 0.45);
+        x = 0.5 * W + (rng() - 0.5) * 4.0;
+        y = 59.0 + (rng() - 0.5) * 4.0;
+        hDeg = 72.0 + 36.0 * frac;
+      } else {
+        x = rng() * W;
+        y = rng() * H;
+        hDeg = rng() * 360.0;
+      }
+    } else if (state.presetIndex === 3 && state.sources.length >= 2) {
+      // Straddle twin-lamp midline separatrix + arena cloud
+      if (i < count * 0.5) {
+        x = 0.5 * W + (rng() - 0.5) * 18.0;
+        y = 12.0 + rng() * 76.0;
+        hDeg = y < 50 ? 90 + (rng() - 0.5) * 24 : -90 + (rng() - 0.5) * 24;
+      } else {
+        x = rng() * W;
+        y = rng() * H;
+        hDeg = rng() * 360.0;
+      }
+    } else if (state.sources.length === 1) {
+      // Concentric inner + outer rings collapsing onto limit cycle / fixed point
+      const s = state.sources[0];
+      const rad = (i % 2 === 0) ? (4.0 + 9.0 * rng()) : (30.0 + 22.0 * rng());
+      const ang = (TWO_PI * i) / count;
+      x = ((s.x + rad * Math.cos(ang)) % W + W) % W;
+      y = ((s.y + rad * Math.sin(ang)) % H + H) % H;
+      hDeg = ((ang + 0.42 * Math.PI) * 180) / Math.PI;
+    } else {
+      x = rng() * W;
+      y = rng() * H;
+      hDeg = rng() * 360.0;
+    }
+    next.push(makeParticle(x, y, hDeg, i % 5, i));
+  }
+  state.particles = next;
+}
+
+/* ============================================================================
+ * 6. SIMULATION STEPPER
+ * ============================================================================ */
+
+function stepSimulation() {
+  const W = state.arenaW, H = state.arenaH, wrap = state.wrap;
+  const dt = state.dt;
+  const sources = state.sources;
+  const p = state.params;
+
+  if (state.vehicleCode === "5") {
+    const painT = Math.max(p.peakAt, 4.0);
+    const nearT = Math.min(painT - 1.0, Math.max(2.0, painT * 0.56));
+    for (let i = 0; i < state.particles.length; i++) {
+      const v = state.particles[i];
+      if (!v.moth) v.moth = createMothBrain();
+      for (let sub = 0; sub < 5; sub++) {
+        stepMothSubstep(v, sources, W, H, wrap, dt / 5.0, painT, nearT, p.baseSpeed, p.gain, p.maxSpeed);
+      }
+      recordTrail(v);
+    }
+  } else if (state.vehicleCode === "12") {
+    for (let i = 0; i < state.particles.length; i++) {
+      const v = state.particles[i];
+      if (!v.dream) v.dream = createDaydreamerBrain(i, p.jitter, 2.0, true);
+      stepDaydreamer(v, dt, p.caudateRate, p.caudateTarget, p.gain, sources, W, H, wrap);
+      recordTrail(v);
+    }
+  } else {
+    for (let i = 0; i < state.particles.length; i++) {
+      const v = state.particles[i];
+      const effP = v.customParams || p;
+      const kin = memorylessKinematics(v.x, v.y, v.heading, effP, sources, W, H, wrap);
+      v.speed = kin.speed;
+      v.turnRate = kin.turnRate;
+      v.lastReading = 0.5 * (kin.readL + kin.readR);
+      v.heading += kin.turnRate * dt;
+      v.ux += kin.speed * Math.cos(v.heading) * dt;
+      v.uy += kin.speed * Math.sin(v.heading) * dt;
+      v.x = wrap ? ((v.ux % W) + W) % W : v.ux;
+      v.y = wrap ? ((v.uy % H) + H) % H : v.uy;
+      recordTrail(v);
+    }
+  }
+  state.simTime += dt;
+}
+
+/* ============================================================================
+ * 7. DUAL-CANVAS SCIENTIFIC RENDERING ENGINE (COSMIC & STROGATZ TEXTBOOK)
+ * ============================================================================ */
+
+const arenaCanvas = document.getElementById("arenaCanvas");
+const phaseCanvas = document.getElementById("phaseCanvas");
+const actx = arenaCanvas.getContext("2d");
+const pctx = phaseCanvas.getContext("2d");
+
+function worldToCanvas(wx, wy, cw, ch) {
+  return [(wx / state.arenaW) * cw, ch - (wy / state.arenaH) * ch];
+}
+
+function canvasToWorld(cx, cy, cw, ch) {
+  return [(cx / cw) * state.arenaW, ((ch - cy) / ch) * state.arenaH];
+}
+
+function drawArena(ctx, cw, ch) {
+  const cosmic = state.theme === "cosmic";
+  ctx.save();
+  ctx.fillStyle = cosmic ? "#060818" : "#fcfbf7";
+  ctx.fillRect(0, 0, cw, ch);
+
+  // 1. FTLE / Capture Basin Raster Layer
+  if ((state.showFTLE || state.showBasins) && ftleCache.ftle) {
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(ftleCache.offscreen, 0, 0, cw, ch);
+    ctx.restore();
+  }
+
+  // 2. Subtle Coordinate Grid
+  ctx.strokeStyle = cosmic ? "rgba(99, 132, 255, 0.09)" : "rgba(24, 24, 27, 0.07)";
+  ctx.lineWidth = 1;
+  const stepWorld = state.arenaW > 130 ? 20 : 10;
+  for (let gx = stepWorld; gx < state.arenaW; gx += stepWorld) {
+    const [px] = worldToCanvas(gx, 0, cw, ch);
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, ch); ctx.stroke();
+  }
+  for (let gy = stepWorld; gy < state.arenaH; gy += stepWorld) {
+    const [, py] = worldToCanvas(0, gy, cw, ch);
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(cw, py); ctx.stroke();
+  }
+
+  // 3. Soft Stimulus Radial Glow + Critical Rings + Flow Vectors
+  for (let m = 0; m < state.sources.length; m++) {
+    const s = state.sources[m];
+    const [sx, sy] = worldToCanvas(s.x, s.y, cw, ch);
+    const fallPx = (s.falloff / state.arenaW) * cw;
+
+    if (cosmic && !state.showFTLE) {
+      const grad = ctx.createRadialGradient(sx, sy, 2, sx, sy, fallPx * 2.3);
+      grad.addColorStop(0, "rgba(251, 191, 36, 0.30)");
+      grad.addColorStop(0.45, "rgba(56, 189, 248, 0.08)");
+      grad.addColorStop(1, "rgba(6, 8, 24, 0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(sx, sy, fallPx * 2.3, 0, TWO_PI);
+      ctx.fill();
+    }
+
+    if (state.showFlow) {
+      // Draw characteristic critical ring(s)
+      if (state.vehicleCode === "5") {
+        // Moth pain (S_L + S_R = peakAt => S ≈ peakAt/2) & near rings
+        const painS = 0.5 * state.params.peakAt;
+        const nearS = 0.5 * Math.min(state.params.peakAt - 1, Math.max(2, state.params.peakAt * 0.56));
+        if (s.intensity > painS) {
+          const rPain = s.falloff * Math.sqrt(s.intensity / painS - 1.0);
+          drawWorldCircle(ctx, s.x, s.y, rPain, cw, ch, cosmic ? "rgba(251,113,133,0.75)" : "#be123c", [5, 5], 1.8);
+        }
+        if (s.intensity > nearS) {
+          const rNear = s.falloff * Math.sqrt(s.intensity / nearS - 1.0);
+          drawWorldCircle(ctx, s.x, s.y, rNear, cw, ch, cosmic ? "rgba(251,191,36,0.55)" : "#b45309", [3, 6], 1.4);
+        }
+      } else {
+        const critS = (state.vehicleCode === "3a" || state.vehicleCode === "3b")
+          ? (state.params.baseSpeed / Math.max(state.params.gain, 0.05))
+          : state.params.peakAt;
+        if (s.intensity > critS && critS > 0.05) {
+          const rCrit = s.falloff * Math.sqrt(s.intensity / critS - 1.0);
+          drawWorldCircle(
+            ctx, s.x, s.y, rCrit, cw, ch,
+            cosmic ? "rgba(56, 189, 248, 0.55)" : "rgba(3, 105, 161, 0.65)",
+            [7, 5], 1.6
+          );
+        }
+      }
+    }
+  }
+
+  // Arena Flow Chevrons (when Flow toggle is on and not V12)
+  if (state.showFlow && state.vehicleCode !== "12" && state.sources.length > 0) {
+    const ng = 17;
+    ctx.strokeStyle = cosmic ? "rgba(148, 163, 200, 0.28)" : "rgba(24, 24, 27, 0.24)";
+    ctx.lineWidth = 1.2;
+    for (let j = 1; j < ng; j++) {
+      for (let i = 1; i < ng; i++) {
+        const wx = (i / ng) * state.arenaW;
+        const wy = (j / ng) * state.arenaH;
+        // Align probe heading toward nearest lamp to visualize radial attraction/orbit drift
+        let bestS = state.sources[0], bestD = 1e9;
+        for (const s of state.sources) {
+          const [dx, dy] = torusDelta(s.x - wx, s.y - wy, state.arenaW, state.arenaH, true);
+          const d = dx * dx + dy * dy;
+          if (d < bestD) { bestD = d; bestS = s; }
+        }
+        const [dx, dy] = torusDelta(bestS.x - wx, bestS.y - wy, state.arenaW, state.arenaH, true);
+        const hProbe = Math.atan2(dy, dx) + (state.params.wiring === "crossed" && state.params.responseType === "peak" ? 0.45 : 0.05);
+        const kin = memorylessKinematics(wx, wy, hProbe, state.params, state.sources, state.arenaW, state.arenaH, true);
+        const dir = hProbe + kin.turnRate * 0.25;
+        const [px, py] = worldToCanvas(wx, wy, cw, ch);
+        const len = Math.min(13, 3.5 + kin.speed * 1.1);
+        const vx = Math.cos(dir) * len, vy = -Math.sin(dir) * len;
+        ctx.beginPath();
+        ctx.moveTo(px - 0.5 * vx, py - 0.5 * vy);
+        ctx.lineTo(px + 0.5 * vx, py + 0.5 * vy);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // 4. Additive Comet Trails & Vehicles (Unwrapped Segment Continuity!)
+  const many = state.particles.length > 30;
+  const palette = cosmic
+    ? ["#38bdf8", "#fb7185", "#fbbf24", "#34d399", "#c084fc"]
+    : ["#0369a1", "#be123c", "#b45309", "#047857", "#6d28d9"];
+
+  if (state.showTrails) {
+    ctx.save();
+    if (cosmic) ctx.globalCompositeOperation = "lighter";
+    ctx.lineWidth = many ? 1.35 : 2.4;
+    const stride = many ? 3 : 1;
+
+    for (let i = 0; i < state.particles.length; i++) {
+      const p = state.particles[i];
+      if (p.trailCount < 2) continue;
+      let col = palette[p.hueIdx % palette.length];
+      if (state.vehicleCode === "5") {
+        col = (p.moth && p.moth.burnedLatched)
+          ? (cosmic ? "#fb7185" : "#be123c")
+          : (cosmic ? "#38bdf8" : "#0369a1");
+      }
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = many ? (cosmic ? 0.34 : 0.42) : (cosmic ? 0.78 : 0.82);
+
+      ctx.beginPath();
+      const startM = Math.max(0, p.trailCount - (many ? 28 : TRAIL_LEN));
+      let prevWx = null, prevWy = null;
+      for (let m = startM; m < p.trailCount; m += stride) {
+        const idx = ((p.trailHead - (p.trailCount - 1 - m)) % TRAIL_LEN + TRAIL_LEN) % TRAIL_LEN;
+        const ux = p.trailX[idx], uy = p.trailY[idx];
+        const wx = ((ux % state.arenaW) + state.arenaW) % state.arenaW;
+        const wy = ((uy % state.arenaH) + state.arenaH) % state.arenaH;
+        const [cx, cy] = worldToCanvas(wx, wy, cw, ch);
+        if (prevWx === null || Math.abs(wx - prevWx) > 0.4 * state.arenaW || Math.abs(wy - prevWy) > 0.4 * state.arenaH) {
+          ctx.moveTo(cx, cy);
+        } else {
+          ctx.lineTo(cx, cy);
+        }
+        prevWx = wx; prevWy = wy;
+      }
+      // Connect cleanly to current head
+      if (prevWx !== null && Math.abs(p.x - prevWx) < 0.4 * state.arenaW && Math.abs(p.y - prevWy) < 0.4 * state.arenaH) {
+        const [hx, hy] = worldToCanvas(p.x, p.y, cw, ch);
+        ctx.lineTo(hx, hy);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Draw vehicle bodies / comet heads
+  for (let i = 0; i < state.particles.length; i++) {
+    const p = state.particles[i];
+    const [px, py] = worldToCanvas(p.x, p.y, cw, ch);
+    let col = palette[p.hueIdx % palette.length];
+    if (state.vehicleCode === "5") {
+      col = (p.moth && p.moth.burnedLatched)
+        ? (cosmic ? "#fb7185" : "#be123c")
+        : (cosmic ? "#38bdf8" : "#0369a1");
+    }
+
+    if (many) {
+      ctx.fillStyle = cosmic ? "#ffffff" : col;
+      ctx.beginPath();
+      ctx.arc(px, py, cosmic ? 2.1 : 2.3, 0, TWO_PI);
+      ctx.fill();
+    } else {
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(-p.heading); // screen y is inverted
+      const bodyLen = Math.max(12, (4.0 / state.arenaW) * cw * 0.95);
+      const bodyWid = bodyLen * 0.72;
+      if (cosmic) {
+        ctx.shadowColor = col;
+        ctx.shadowBlur = 12;
+      }
+      ctx.fillStyle = col;
+      ctx.strokeStyle = cosmic ? "#ffffff" : "#18181b";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.roundRect(-bodyLen * 0.5, -bodyWid * 0.5, bodyLen, bodyWid, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      // Two front eyes at [+-0.9, 0.9]
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = cosmic ? "#fef08a" : "#ffffff";
+      ctx.beginPath();
+      ctx.arc(bodyLen * 0.45, -bodyWid * 0.42, 2.5, 0, TWO_PI);
+      ctx.arc(bodyLen * 0.45, bodyWid * 0.42, 2.5, 0, TWO_PI);
+      ctx.fill();
+      ctx.restore();
+      if (p.tag) {
+        ctx.fillStyle = cosmic ? "#eef2ff" : "#18181b";
+        ctx.font = "700 11px -apple-system, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(p.tag, px, py - 14);
+      }
+    }
+  }
+
+  // 5. Draw Lamps on top
+  for (let m = 0; m < state.sources.length; m++) {
+    const s = state.sources[m];
+    const [sx, sy] = worldToCanvas(s.x, s.y, cw, ch);
+    ctx.save();
+    if (cosmic) {
+      ctx.shadowColor = "#fbbf24";
+      ctx.shadowBlur = 22;
+    }
+    ctx.fillStyle = cosmic ? "#fde68a" : "#f59e0b";
+    ctx.strokeStyle = cosmic ? "#ffffff" : "#18181b";
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 9.5, 0, TWO_PI);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = cosmic ? "#060818" : "#18181b";
+    ctx.font = "700 10px -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(m + 1), sx, sy + 0.5);
+    ctx.restore();
+  }
+
+  // Interactive launch arrow preview
+  if (state.launchDrag) {
+    const { x0, y0, x1, y1 } = state.launchDrag;
+    ctx.strokeStyle = cosmic ? "#fbbf24" : "#18181b";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.restore();
+}
+
+function drawWorldCircle(ctx, wx, wy, rWorld, cw, ch, stroke, dash, lw) {
+  const [cx, cy] = worldToCanvas(wx, wy, cw, ch);
+  const rPx = (rWorld / state.arenaW) * cw;
+  ctx.save();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = lw;
+  ctx.setLineDash(dash);
+  ctx.beginPath();
+  ctx.arc(cx, cy, rPx, 0, TWO_PI);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* ============================================================================
+ * 8. RIGHT CANVAS: SYNCHRONIZED PHASE SPACE (ACTS I-II, ACT III, ACT IV)
+ * ============================================================================ */
+
+function drawPhaseSpace(ctx, cw, ch) {
+  if (state.vehicleCode === "5") {
+    drawMothHysteresisCanvas(ctx, cw, ch);
+  } else if (state.vehicleCode === "12") {
+    drawDaydreamerCriticalityCanvas(ctx, cw, ch);
+  } else {
+    drawCylindricalPolarCanvas(ctx, cw, ch);
+  }
+}
+
+// Marching-squares zero-contour drawer on a 2D scalar array F[j * nx + i]
+function strokeZeroContour(ctx, F, nx, ny, x0, y0, w, h, color, lw, dash = []) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lw;
+  ctx.setLineDash(dash);
+  ctx.beginPath();
+
+  for (let j = 0; j < ny - 1; j++) {
+    const py0 = y0 + h - (j / (ny - 1)) * h;
+    const py1 = y0 + h - ((j + 1) / (ny - 1)) * h;
+    for (let i = 0; i < nx - 1; i++) {
+      const f00 = F[j * nx + i];
+      const f10 = F[j * nx + i + 1];
+      const f01 = F[(j + 1) * nx + i];
+      const f11 = F[(j + 1) * nx + i + 1];
+
+      // Skip discontinuity jumps across +-pi wrap if huge
+      const maxMin = Math.max(f00, f10, f01, f11) - Math.min(f00, f10, f01, f11);
+      if (maxMin > 9.5) continue;
+
+      const px0 = x0 + (i / (nx - 1)) * w;
+      const px1 = x0 + ((i + 1) / (nx - 1)) * w;
+      const pts = [];
+
+      if ((f00 >= 0) !== (f10 >= 0)) {
+        const t = f00 / (f00 - f10);
+        pts.push([px0 + t * (px1 - px0), py0]);
+      }
+      if ((f10 >= 0) !== (f11 >= 0)) {
+        const t = f10 / (f10 - f11);
+        pts.push([px1, py0 + t * (py1 - py0)]);
+      }
+      if ((f01 >= 0) !== (f11 >= 0)) {
+        const t = f01 / (f01 - f11);
+        pts.push([px0 + t * (px1 - px0), py1]);
+      }
+      if ((f00 >= 0) !== (f01 >= 0)) {
+        const t = f00 / (f00 - f01);
+        pts.push([px0, py0 + t * (py1 - py0)]);
+      }
+      if (pts.length >= 2) {
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        ctx.lineTo(pts[1][0], pts[1][1]);
+      }
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawCylindricalPolarCanvas(ctx, cw, ch) {
+  const cosmic = state.theme === "cosmic";
+  ctx.save();
+  ctx.fillStyle = cosmic ? "#060818" : "#fcfbf7";
+  ctx.fillRect(0, 0, cw, ch);
+
+  const pad = { l: 74, r: 30, t: 38, b: 62 };
+  const pw = cw - pad.l - pad.r;
+  const ph = ch - pad.t - pad.b;
+  const rMin = 1.0;
+  const rMax = Math.min(65.0, 0.56 * state.arenaW);
+
+  const refSource = state.sources[0] || { x: 0.5 * state.arenaW, y: 0.5 * state.arenaH, intensity: 10, falloff: 15 };
+  const I0 = refSource.intensity, F0 = refSource.falloff;
+
+  const toPx = (r, psi) => [
+    pad.l + ((r - rMin) / (rMax - rMin)) * pw,
+    pad.t + ph * (1.0 - (psi + Math.PI) / TWO_PI)
+  ];
+
+  // Axes & horizontal invariant lines psi = -pi, -pi/2, 0, +pi/2, +pi
+  ctx.strokeStyle = cosmic ? "rgba(99, 132, 255, 0.16)" : "rgba(24, 24, 27, 0.12)";
+  ctx.lineWidth = 1;
+  const psiTicks = [
+    [-Math.PI, "−π (away)"],
+    [-0.5 * Math.PI, "−π/2 (right)"],
+    [0, "0 (facing)"],
+    [0.5 * Math.PI, "+π/2 (left)"],
+    [Math.PI, "+π (away)"]
+  ];
+  ctx.font = "600 13px -apple-system, sans-serif";
+  ctx.fillStyle = cosmic ? "#94a3c8" : "#3f3f46";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+
+  for (const [val, label] of psiTicks) {
+    const [, py] = toPx(rMin, val);
+    ctx.beginPath();
+    ctx.moveTo(pad.l, py);
+    ctx.lineTo(pad.l + pw, py);
+    ctx.stroke();
+    ctx.fillText(label, pad.l - 8, py);
+  }
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for (let rTick = 10; rTick <= rMax; rTick += 10) {
+    const [px] = toPx(rTick, 0);
+    ctx.beginPath();
+    ctx.moveTo(px, pad.t);
+    ctx.lineTo(px, pad.t + ph);
+    ctx.stroke();
+    ctx.fillText(String(rTick), px, pad.t + ph + 8);
+  }
+
+  // Evaluate polar vector field (dr, dpsi) on a 56x56 grid for nullclines + streamlines
+  const nx = 56, ny = 56;
+  const DR = new Float64Array(nx * ny);
+  const DPSI = new Float64Array(nx * ny);
+  for (let j = 0; j < ny; j++) {
+    const psi = -Math.PI + (j / (ny - 1)) * TWO_PI;
+    for (let i = 0; i < nx; i++) {
+      const r = rMin + (i / (nx - 1)) * (rMax - rMin);
+      const { dr, dpsi } = polarDerivatives(r, psi, state.params, I0, F0);
+      DR[j * nx + i] = dr;
+      DPSI[j * nx + i] = dpsi;
+    }
+  }
+
+  // Vector field arrows
+  ctx.strokeStyle = cosmic ? "rgba(148, 163, 200, 0.30)" : "rgba(24, 24, 27, 0.28)";
+  ctx.lineWidth = 1.25;
+  for (let j = 2; j < ny - 1; j += 3) {
+    for (let i = 2; i < nx - 1; i += 3) {
+      const r = rMin + (i / (nx - 1)) * (rMax - rMin);
+      const psi = -Math.PI + (j / (ny - 1)) * TWO_PI;
+      const dr = DR[j * nx + i];
+      const dpsi = DPSI[j * nx + i];
+      const sx = dr / (rMax - rMin);
+      const sy = -dpsi / TWO_PI;
+      const mag = Math.hypot(sx, sy);
+      if (mag < 1e-5) continue;
+      const [px, py] = toPx(r, psi);
+      const ux = (sx / mag) * 12.0;
+      const uy = (sy / mag) * 12.0;
+      ctx.beginPath();
+      ctx.moveTo(px - 0.5 * ux, py - 0.5 * uy);
+      ctx.lineTo(px + 0.5 * ux, py + 0.5 * uy);
+      // Tiny arrowhead
+      ctx.lineTo(px + 0.5 * ux - 3.5 * (ux / 12) - 2.4 * (uy / 12), py + 0.5 * uy - 3.5 * (uy / 12) + 2.4 * (ux / 12));
+      ctx.stroke();
+    }
+  }
+
+  // Nullclines: dr = 0 (emerald dashed) and dpsi = 0 (gold solid)
+  strokeZeroContour(ctx, DR, nx, ny, pad.l, pad.t, pw, ph, cosmic ? "#34d399" : "#047857", 2.0, [6, 5]);
+  strokeZeroContour(ctx, DPSI, nx, ny, pad.l, pad.t, pw, ph, cosmic ? "#fbbf24" : "#b45309", 2.3, []);
+
+  // Detect & draw closed limit cycle or SO(2) relative-equilibrium spiral sinks (+psi and -psi branches)
+  if (state.params.wiring === "crossed" && state.params.responseType === "peak" && state.params.sign > 0) {
+    let drewGuide = false;
+    for (const psiSign of [1.0, -1.0]) {
+      let r = Math.min(rMax * 0.6, F0 * 1.35), psi = psiSign * 1.25;
+      for (let s = 0; s < 700; s++) {
+        const d1 = polarDerivatives(r, psi, state.params, I0, F0);
+        r = Math.max(1.2, Math.min(rMax, r + d1.dr * 0.04));
+        psi = wrapPi(psi + d1.dpsi * 0.04);
+      }
+      const orbPts = [];
+      let rMinOrb = Infinity, rMaxOrb = -Infinity;
+      for (let s = 0; s < 320; s++) {
+        const d1 = polarDerivatives(r, psi, state.params, I0, F0);
+        r = Math.max(1.2, Math.min(rMax, r + d1.dr * 0.03));
+        psi = wrapPi(psi + d1.dpsi * 0.03);
+        if (r < rMinOrb) rMinOrb = r;
+        if (r > rMaxOrb) rMaxOrb = r;
+        orbPts.push([r, psi]);
+      }
+      const rSpan = rMaxOrb - rMinOrb;
+      ctx.save();
+      const attCol = cosmic ? "#fb7185" : "#be123c";
+      if (rSpan > 0.15) {
+        ctx.strokeStyle = attCol;
+        ctx.lineWidth = 3.0;
+        if (cosmic) { ctx.shadowColor = "#fb7185"; ctx.shadowBlur = 12; }
+        ctx.beginPath();
+        let prevPsi = null;
+        for (const [ro, po] of orbPts) {
+          if (ro > rMin && ro < rMax - 0.5) {
+            const [px, py] = toPx(ro, po);
+            if (prevPsi === null || Math.abs(po - prevPsi) > 2.5) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+            prevPsi = po;
+          }
+        }
+        ctx.stroke();
+      } else if (r > rMin + 0.5 && r < rMax - 1.0) {
+        // Circular arena limit cycle quotients on (r, psi) to stable spiral relative equilibria at (r_lc, +-pi/2)
+        const [eqX, eqY] = toPx(r, psi);
+        if (!drewGuide) {
+          drewGuide = true;
+          ctx.save();
+          ctx.strokeStyle = cosmic ? "rgba(251, 113, 133, 0.36)" : "rgba(190, 18, 60, 0.32)";
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 5]);
+          ctx.beginPath();
+          ctx.moveTo(eqX, pad.t);
+          ctx.lineTo(eqX, pad.t + ph);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = attCol;
+          ctx.font = "700 11px -apple-system, sans-serif";
+          ctx.textAlign = "left";
+          ctx.fillText(`r_lc ≈ ${r.toFixed(1)}`, eqX + 6, pad.t + 16);
+          ctx.restore();
+        }
+        // Subtle spiral-sink halo + filled Strogatz stable equilibrium marker
+        ctx.strokeStyle = cosmic ? "rgba(251, 113, 133, 0.62)" : "rgba(190, 18, 60, 0.55)";
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        for (let k = 0; k <= 42; k++) {
+          const thS = (k / 42) * TWO_PI * 1.65 * psiSign;
+          const radS = 16.0 * (1.0 - 0.72 * (k / 42));
+          const sx = eqX + radS * Math.cos(thS);
+          const sy = eqY - radS * Math.sin(thS);
+          if (k === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+
+        if (cosmic) { ctx.shadowColor = "#fb7185"; ctx.shadowBlur = 14; }
+        ctx.fillStyle = attCol;
+        ctx.strokeStyle = cosmic ? "#ffffff" : "#18181b";
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.arc(eqX, eqY, 6.2, 0, TWO_PI);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  // Strogatz Fixed-Point Line for 3a Love (v = 0 equilibrium segment on psi = 0)
+  if (state.params.sign < 0 && state.params.wiring === "straight" && state.params.gain > 0) {
+    const sStop = state.params.baseSpeed / state.params.gain;
+    if (I0 > sStop && sStop > 0) {
+      const rStop = Math.min(rMax, F0 * Math.sqrt(I0 / sStop - 1.0));
+      const [xA, y0] = toPx(rMin, 0);
+      const [xB] = toPx(rStop, 0);
+      ctx.save();
+      ctx.strokeStyle = cosmic ? "#34d399" : "#18181b";
+      ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(xA, y0); ctx.lineTo(xB, y0); ctx.stroke();
+      // Strogatz filled stable node discs along rest segment
+      for (let rr = 3; rr <= rStop; rr += 4.5) {
+        const [cx, cy] = toPx(rr, 0);
+        ctx.fillStyle = cosmic ? "#34d399" : "#18181b";
+        ctx.beginPath(); ctx.arc(cx, cy, 4.8, 0, TWO_PI); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  // Plot ALL live particles mapped into (r, psi) relative to nearest active source!
+  if (state.sources.length > 0) {
+    const many = state.particles.length > 30;
+    const palette = cosmic
+      ? ["#38bdf8", "#fb7185", "#fbbf24", "#34d399", "#c084fc"]
+      : ["#0369a1", "#be123c", "#b45309", "#047857", "#6d28d9"];
+
+    // Draw lead particle's polar trail when N <= 30
+    if (!many && state.particles.length > 0) {
+      for (let idxP = 0; idxP < Math.min(state.particles.length, 8); idxP++) {
+        const lead = state.particles[idxP];
+        ctx.strokeStyle = palette[lead.hueIdx % palette.length];
+        ctx.lineWidth = 2.0;
+        ctx.globalAlpha = 0.65;
+        ctx.beginPath();
+        let prevPsi = null, prevR = null;
+        for (let m = 0; m < lead.trailCount; m++) {
+          const ti = ((lead.trailHead - (lead.trailCount - 1 - m)) % TRAIL_LEN + TRAIL_LEN) % TRAIL_LEN;
+          const wx = ((lead.trailX[ti] % state.arenaW) + state.arenaW) % state.arenaW;
+          const wy = ((lead.trailY[ti] % state.arenaH) + state.arenaH) % state.arenaH;
+          const { r, psi } = nearestPolar(wx, wy, lead.trailH[ti]);
+          if (r < rMin || r > rMax) { prevPsi = null; continue; }
+          const [px, py] = toPx(r, psi);
+          if (prevPsi === null || Math.abs(psi - prevPsi) > 2.2 || Math.abs(r - prevR) > 14) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+          prevPsi = psi; prevR = r;
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+      }
+    }
+
+    for (let i = 0; i < state.particles.length; i++) {
+      const p = state.particles[i];
+      const { r, psi } = nearestPolar(p.x, p.y, p.heading);
+      if (r < rMin || r > rMax) continue;
+      const [px, py] = toPx(r, psi);
+      const col = palette[p.hueIdx % palette.length];
+      ctx.fillStyle = many && cosmic ? "#38bdf8" : col;
+      ctx.globalAlpha = many ? 0.72 : 1.0;
+      ctx.beginPath();
+      ctx.arc(px, py, many ? 2.4 : 5.5, 0, TWO_PI);
+      ctx.fill();
+      if (!many) {
+        ctx.strokeStyle = cosmic ? "#ffffff" : "#18181b";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1.0;
+  }
+
+  // Frame border & axis titles
+  ctx.strokeStyle = cosmic ? "rgba(148, 163, 200, 0.42)" : "#18181b";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(pad.l, pad.t, pw, ph);
+
+  ctx.fillStyle = cosmic ? "#eef2ff" : "#18181b";
+  ctx.font = "600 14px -apple-system, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Distance to Nearest Lamp  r", pad.l + 0.5 * pw, ch - 20);
+
+  ctx.save();
+  ctx.translate(18, pad.t + 0.5 * ph);
+  ctx.rotate(-0.5 * Math.PI);
+  ctx.fillText("Lamp Bearing in Body Frame  ψ (rad)", 0, 0);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function nearestPolar(wx, wy, heading) {
+  let bestS = state.sources[0], bestD = 1e9, bestDx = 0, bestDy = 0;
+  for (let m = 0; m < state.sources.length; m++) {
+    const s = state.sources[m];
+    const [dx, dy] = torusDelta(s.x - wx, s.y - wy, state.arenaW, state.arenaH, state.wrap);
+    const d = Math.hypot(dx, dy);
+    if (d < bestD) { bestD = d; bestS = s; bestDx = dx; bestDy = dy; }
+  }
+  const psi = wrapPi(Math.atan2(bestDy, bestDx) - heading);
+  return { r: bestD, psi, source: bestS };
+}
+
+/* --- Act III: Moth Fold/Latch Hysteresis Catastrophe Canvas --- */
+function drawMothHysteresisCanvas(ctx, cw, ch) {
+  const cosmic = state.theme === "cosmic";
+  ctx.save();
+  ctx.fillStyle = cosmic ? "#060818" : "#fcfbf7";
+  ctx.fillRect(0, 0, cw, ch);
+
+  const pad = { l: 74, r: 34, t: 44, b: 290 };
+  const pw = cw - pad.l - pad.r;
+  const ph = ch - pad.t - pad.b;
+
+  const refS = state.sources[0] || { intensity: 10, falloff: 15 };
+  const painS = 0.5 * state.params.peakAt;
+  const nearS = 0.5 * Math.min(state.params.peakAt - 1, Math.max(2, state.params.peakAt * 0.56));
+  const rBurn = refS.intensity > painS ? refS.falloff * Math.sqrt(refS.intensity / painS - 1.0) : 5.0;
+  const rNear = refS.intensity > nearS ? refS.falloff * Math.sqrt(refS.intensity / nearS - 1.0) : 16.0;
+  const rMax = 45.0;
+
+  const rxToPx = (r) => pad.l + (Math.min(Math.max(r, 0), rMax) / rMax) * pw;
+  // y-axis: Effective Radial Intent (-dr/dt: +5 = attraction inward, -5 = repulsion outward)
+  const vyToPx = (vr) => pad.t + ph * (0.5 - vr / 13.0);
+
+  // Zero line
+  ctx.strokeStyle = cosmic ? "rgba(148,163,200,0.25)" : "rgba(24,24,27,0.2)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(pad.l, vyToPx(0)); ctx.lineTo(pad.l + pw, vyToPx(0)); ctx.stroke();
+
+  // Critical radii vertical lines
+  const xBurn = rxToPx(rBurn), xNear = rxToPx(rNear);
+  ctx.setLineDash([5, 5]);
+  ctx.strokeStyle = cosmic ? "#fb7185" : "#be123c";
+  ctx.beginPath(); ctx.moveTo(xBurn, pad.t); ctx.lineTo(xBurn, pad.t + ph); ctx.stroke();
+  ctx.strokeStyle = cosmic ? "#fbbf24" : "#b45309";
+  ctx.beginPath(); ctx.moveTo(xNear, pad.t); ctx.lineTo(xNear, pad.t + ph); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Upper manifold: Unburned Seek Branch (b = 0, inward radial velocity > 0 down to rBurn)
+  const vSeek = state.params.baseSpeed + 0.5 * state.params.gain;
+  ctx.strokeStyle = cosmic ? "#38bdf8" : "#0369a1";
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.moveTo(rxToPx(rMax), vyToPx(vSeek));
+  ctx.lineTo(xBurn, vyToPx(vSeek));
+  ctx.stroke();
+
+  // Catastrophe Jump Arrow at r = rBurn!
+  ctx.strokeStyle = cosmic ? "#fbbf24" : "#18181b";
+  ctx.lineWidth = 2.6;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(xBurn, vyToPx(vSeek));
+  ctx.lineTo(xBurn, vyToPx(-vSeek));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Lower manifold: Burned Flee Branch (b = 1, outward radial velocity < 0 inside rNear, neutral cruise outside rNear)
+  ctx.strokeStyle = cosmic ? "#fb7185" : "#be123c";
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.moveTo(rxToPx(0.5), vyToPx(-vSeek));
+  ctx.lineTo(xNear, vyToPx(-vSeek));
+  ctx.lineTo(xNear, vyToPx(0));
+  ctx.lineTo(rxToPx(rMax), vyToPx(0));
+  ctx.stroke();
+
+  // Branch labels
+  ctx.font = "700 13px -apple-system, sans-serif";
+  ctx.fillStyle = cosmic ? "#38bdf8" : "#0369a1";
+  ctx.textAlign = "left";
+  ctx.fillText("Sheet b = 0: Phototactic Attraction (Seek)", xNear + 12, vyToPx(vSeek) - 12);
+  ctx.fillStyle = cosmic ? "#fb7185" : "#be123c";
+  ctx.fillText("Sheet b = 1: Latched Repulsion (Flee inside r_near)", pad.l + 10, vyToPx(-vSeek) + 20);
+  ctx.fillStyle = cosmic ? "#fbbf24" : "#b45309";
+  ctx.fillText(`Fold Jump (r_burn ≈ ${rBurn.toFixed(1)})`, xBurn + 6, vyToPx(0) - 10);
+
+  // Live Moth particles on hysteresis manifold!
+  if (state.sources.length > 0) {
+    for (let i = 0; i < state.particles.length; i++) {
+      const p = state.particles[i];
+      const { r, psi } = nearestPolar(p.x, p.y, p.heading);
+      if (r > rMax) continue;
+      const radialInward = p.speed * Math.cos(psi);
+      const burned = p.moth && p.moth.burnedLatched;
+      const px = rxToPx(r);
+      const py = vyToPx(radialInward);
+      ctx.fillStyle = burned ? (cosmic ? "#fb7185" : "#be123c") : (cosmic ? "#38bdf8" : "#0369a1");
+      ctx.beginPath();
+      ctx.arc(px, py, state.particles.length > 30 ? 3.0 : 6.5, 0, TWO_PI);
+      ctx.fill();
+    }
+  }
+
+  ctx.strokeStyle = cosmic ? "rgba(148,163,200,0.42)" : "#18181b";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(pad.l, pad.t, pw, ph);
+
+  ctx.fillStyle = cosmic ? "#eef2ff" : "#18181b";
+  ctx.font = "600 13px -apple-system, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Distance to Nearest Lamp  r", pad.l + 0.5 * pw, pad.t + ph + 28);
+  for (let rt = 0; rt <= rMax; rt += 10) {
+    ctx.fillText(String(rt), rxToPx(rt), pad.t + ph + 8);
+  }
+
+  ctx.save();
+  ctx.translate(20, pad.t + 0.5 * ph);
+  ctx.rotate(-0.5 * Math.PI);
+  ctx.fillText("Inward Radial Speed  −ṙ = v cos ψ", 0, 0);
+  ctx.restore();
+
+  // Bottom Neural Latch Circuit Monitor for Lead Moth
+  const lead = state.particles[0];
+  const boxY = ch - 220, boxH = 195;
+  ctx.fillStyle = cosmic ? "rgba(15, 22, 54, 0.85)" : "#f0ede4";
+  ctx.strokeStyle = cosmic ? "rgba(99, 132, 255, 0.28)" : "rgba(24, 24, 27, 0.22)";
+  ctx.beginPath(); ctx.roundRect(pad.l, boxY, pw, boxH, 10); ctx.fill(); ctx.stroke();
+
+  ctx.fillStyle = cosmic ? "#eef2ff" : "#18181b";
+  ctx.font = "700 13px -apple-system, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("Lead Moth 9-Unit Recurrent Threshold Circuit (live state)", pad.l + 16, boxY + 24);
+
+  if (lead && lead.moth) {
+    const u = lead.moth.out;
+    const nodes = [
+      ["left_brighter", u.left_brighter, 0.14, 0.36],
+      ["right_brighter", u.right_brighter, 0.14, 0.74],
+      ["near (≥10)", u.near, 0.42, 0.36],
+      ["pain (≥18)", u.pain, 0.42, 0.74],
+      ["BURNED (latch)", lead.moth.burnedLatched ? 1 : 0, 0.66, 0.55],
+      ["seek_L/R", Math.max(u.seek_left, u.seek_right), 0.88, 0.36],
+      ["flee_L/R", Math.max(u.flee_left, u.flee_right), 0.88, 0.74]
+    ];
+    for (const [name, active, fx, fy] of nodes) {
+      const nxP = pad.l + fx * pw;
+      const nyP = boxY + fy * boxH;
+      ctx.fillStyle = active
+        ? (name.startsWith("BURN") || name.startsWith("flee") || name.startsWith("pain")
+            ? (cosmic ? "#fb7185" : "#be123c")
+            : (cosmic ? "#34d399" : "#047857"))
+        : (cosmic ? "#1e293b" : "#d4d4d8");
+      ctx.strokeStyle = cosmic ? "#94a3c8" : "#18181b";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(nxP, nyP, 13, 0, TWO_PI); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = cosmic ? "#cbd5e1" : "#27272a";
+      ctx.font = "600 11px -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(name, nxP, nyP + 26);
+    }
+  }
+  ctx.restore();
+}
+
+/* --- Act IV: Vehicle 12 Daydreamer Cortical Ring + Z(t) + Caudate Trace --- */
+function drawDaydreamerCriticalityCanvas(ctx, cw, ch) {
+  const cosmic = state.theme === "cosmic";
+  ctx.save();
+  ctx.fillStyle = cosmic ? "#060818" : "#fcfbf7";
+  ctx.fillRect(0, 0, cw, ch);
+
+  const lead = state.particles[0];
+  if (!lead || !lead.dream) { ctx.restore(); return; }
+  const d = lead.dream;
+
+  // Top-Left: 8-Neuron Cortical Ring Mandala (idea_0..7 + Caudate)
+  const rCx = cw * 0.27, rCy = ch * 0.30, rRad = cw * 0.175;
+  const gestures = ["FWD", "LEFT", "RIGHT", "STOP", "FWD", "LEFT", "RIGHT", "STOP"];
+  const nodePos = [];
+  for (let k = 0; k < 8; k++) {
+    const ang = -0.5 * Math.PI + (TWO_PI * k) / 8.0; // clockwise from top, matching specs/vehicle-12.md!
+    nodePos.push([rCx + rRad * Math.cos(ang), rCy + rRad * Math.sin(ang)]);
+  }
+
+  // Draw k -> k+1 and k -> k+3 associative chords
+  for (let k = 0; k < 8; k++) {
+    const active = d.ideaOut[k] > 0.5 || d.ideaImmediate[k] > 0.5;
+    for (const step of [1, 3]) {
+      const dst = (k + step) % 8;
+      ctx.strokeStyle = active
+        ? (cosmic ? "rgba(56, 189, 248, 0.80)" : "rgba(3, 105, 161, 0.78)")
+        : (cosmic ? "rgba(99, 132, 255, 0.16)" : "rgba(24, 24, 27, 0.12)");
+      ctx.lineWidth = active ? 2.4 : 1.1;
+      ctx.beginPath();
+      ctx.moveTo(nodePos[k][0], nodePos[k][1]);
+      ctx.lineTo(nodePos[dst][0], nodePos[dst][1]);
+      ctx.stroke();
+    }
+  }
+
+  // Central Caudate diamond
+  ctx.save();
+  ctx.translate(rCx, rCy);
+  ctx.rotate(0.25 * Math.PI);
+  ctx.fillStyle = d.caudateEnabled
+    ? (cosmic ? "rgba(251, 191, 36, 0.28)" : "rgba(245, 158, 11, 0.25)")
+    : (cosmic ? "rgba(100,116,139,0.2)" : "#e4e4e7");
+  ctx.strokeStyle = cosmic ? "#fbbf24" : "#b45309";
+  ctx.lineWidth = 2;
+  ctx.fillRect(-18, -18, 36, 36);
+  ctx.strokeRect(-18, -18, 36, 36);
+  ctx.restore();
+  ctx.fillStyle = cosmic ? "#fde68a" : "#92400e";
+  ctx.font = "700 11px -apple-system, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("caudate", rCx, rCy - 2);
+  ctx.fillText((d.visibleOffset >= 0 ? "+" : "") + d.visibleOffset.toFixed(2), rCx, rCy + 12);
+
+  for (let k = 0; k < 8; k++) {
+    const [nxP, nyP] = nodePos[k];
+    const on = d.ideaOut[k] > 0.5;
+    const igniting = d.ideaImmediate[k] > 0.5;
+    ctx.save();
+    if (cosmic && (on || igniting)) {
+      ctx.shadowColor = on ? "#38bdf8" : "#fbbf24";
+      ctx.shadowBlur = 16;
+    }
+    ctx.fillStyle = on
+      ? (cosmic ? "#38bdf8" : "#0369a1")
+      : (igniting ? (cosmic ? "#fbbf24" : "#d97706") : (cosmic ? "#0f172a" : "#f4f4f5"));
+    ctx.strokeStyle = cosmic ? "#e2e8f0" : "#18181b";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(nxP, nyP, 18, 0, TWO_PI); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = on ? "#ffffff" : (cosmic ? "#cbd5e1" : "#18181b");
+    ctx.font = "700 11px -apple-system, sans-serif";
+    ctx.fillText(`i${k}`, nxP, nyP - 2);
+    ctx.font = "600 9px -apple-system, sans-serif";
+    ctx.fillText(gestures[k], nxP, nyP + 9);
+    ctx.restore();
+  }
+
+  ctx.fillStyle = cosmic ? "#eef2ff" : "#18181b";
+  ctx.font = "700 14px -apple-system, sans-serif";
+  ctx.fillText("8-Idea Cortical Ring (k → k+1, k+3)", rCx, 28);
+
+  // Top-Right: Kuramoto-Strogatz Complex Order Parameter Z(t) = R e^{i Phi}
+  const zCx = cw * 0.74, zCy = ch * 0.30, zRad = cw * 0.175;
+  ctx.strokeStyle = cosmic ? "rgba(148, 163, 200, 0.32)" : "rgba(24, 24, 27, 0.28)";
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.arc(zCx, zCy, zRad, 0, TWO_PI); ctx.stroke();
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.arc(zCx, zCy, zRad * 0.5, 0, TWO_PI); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(zCx - zRad, zCy); ctx.lineTo(zCx + zRad, zCy);
+  ctx.moveTo(zCx, zCy - zRad); ctx.lineTo(zCx, zCy + zRad);
+  ctx.stroke();
+
+  // Scale Z inside disc (1 active neuron => |Z| = 1/8 = 0.125; scale * 3.2 so R=0.25 fills 80% of disc!)
+  const zScale = zRad * 3.0;
+  if (d.orderHistory.length > 1) {
+    ctx.strokeStyle = cosmic ? "#c084fc" : "#6d28d9";
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    for (let i = 0; i < d.orderHistory.length; i++) {
+      const o = d.orderHistory[i];
+      const px = zCx + Math.max(-zRad, Math.min(zRad, o.re * zScale));
+      const py = zCy - Math.max(-zRad, Math.min(zRad, o.im * zScale));
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    const cur = d.orderHistory[d.orderHistory.length - 1];
+    const hx = zCx + Math.max(-zRad, Math.min(zRad, cur.re * zScale));
+    const hy = zCy - Math.max(-zRad, Math.min(zRad, cur.im * zScale));
+    ctx.strokeStyle = cosmic ? "#fbbf24" : "#18181b";
+    ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.moveTo(zCx, zCy); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.fillStyle = cosmic ? "#fbbf24" : "#be123c";
+    ctx.beginPath(); ctx.arc(hx, hy, 5.5, 0, TWO_PI); ctx.fill();
+  }
+  ctx.fillStyle = cosmic ? "#eef2ff" : "#18181b";
+  ctx.font = "700 14px -apple-system, sans-serif";
+  ctx.fillText("Order Parameter  Z(t) = R e^{iΦ}", zCx, 28);
+
+  // Bottom Half: Caudate Homeostatic Trace (Activity A(t) vs Effective Threshold 2 + offset(t))
+  const padL = 68, padR = 32, topY = ch * 0.59, botH = ch * 0.34;
+  const plotW = cw - padL - padR;
+  ctx.fillStyle = cosmic ? "rgba(10, 15, 38, 0.78)" : "#f4f1ea";
+  ctx.strokeStyle = cosmic ? "rgba(148, 163, 200, 0.36)" : "#18181b";
+  ctx.lineWidth = 1.4;
+  ctx.fillRect(padL, topY, plotW, botH);
+  ctx.strokeRect(padL, topY, plotW, botH);
+
+  // Determine regime label
+  const recentA = d.traceActivity.slice(-40);
+  const meanA = recentA.length ? recentA.reduce((a, b) => a + b, 0) / recentA.length : 0;
+  let regime = "CRITICAL TRAINS OF THOUGHT", regCol = cosmic ? "#34d399" : "#047857";
+  if (meanA < 0.08 && d.tick > 90) { regime = "QUIESCENT EXTINCTION (A → 0)"; regCol = cosmic ? "#94a3c8" : "#52525b"; }
+  else if (meanA > 5.2) { regime = "EPILEPTIC FLOOD (A → 8)"; regCol = cosmic ? "#fb7185" : "#be123c"; }
+
+  ctx.fillStyle = regCol;
+  ctx.font = "700 13px -apple-system, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(`Regime: ${regime}   (⟨A⟩ = ${meanA.toFixed(2)})`, padL + 12, topY - 10);
+
+  // Target horizontal line
+  const yFromVal = (v) => topY + botH - ((v + 1.0) / 9.5) * botH;
+  ctx.setLineDash([5, 5]);
+  ctx.strokeStyle = cosmic ? "rgba(52, 211, 153, 0.55)" : "rgba(4, 120, 87, 0.6)";
+  ctx.beginPath();
+  ctx.moveTo(padL, yFromVal(state.params.caudateTarget));
+  ctx.lineTo(padL + plotW, yFromVal(state.params.caudateTarget));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const Ntr = d.traceActivity.length;
+  if (Ntr > 1) {
+    // Activity trace (cyan)
+    ctx.strokeStyle = cosmic ? "#38bdf8" : "#0369a1";
+    ctx.lineWidth = 2.1;
+    ctx.beginPath();
+    for (let i = 0; i < Ntr; i++) {
+      const px = padL + (i / 260) * plotW;
+      const py = Math.max(topY + 2, Math.min(topY + botH - 2, yFromVal(d.traceActivity[i])));
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Effective threshold 2 + offset(t) (gold)
+    ctx.strokeStyle = cosmic ? "#fbbf24" : "#b45309";
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    for (let i = 0; i < Ntr; i++) {
+      const px = padL + (i / 260) * plotW;
+      const py = Math.max(topY + 2, Math.min(topY + botH - 2, yFromVal(d.traceThreshold[i])));
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = cosmic ? "#94a3c8" : "#3f3f46";
+  ctx.font = "600 12px -apple-system, sans-serif";
+  ctx.textAlign = "right";
+  for (const tick of [0, 2, 4, 6, 8]) {
+    ctx.fillText(String(tick), padL - 8, yFromVal(tick) + 4);
+  }
+  ctx.textAlign = "center";
+  ctx.fillStyle = cosmic ? "#eef2ff" : "#18181b";
+  ctx.fillText("Time Window — Cyan: Cortical Activity ∑a_k(t)   ·   Gold: Caudate Effective Threshold 2 + ϑ(t)", padL + 0.5 * plotW, ch - 16);
+
+  ctx.restore();
+}
+
+/* ============================================================================
+ * 9. UI WIRING, PRESET CONTROLS, INTERACTIVE MOUSE & 4K PNG EXPORT
+ * ============================================================================ */
+
+function buildPresetButtons() {
+  const bar = document.getElementById("presetBar");
+  bar.innerHTML = "";
+  PRESETS.forEach((pr, idx) => {
+    const btn = document.createElement("button");
+    btn.className = "preset-btn" + (idx === state.presetIndex ? " selected" : "");
+    btn.innerHTML = `<span class="act-label">${pr.act}</span><span class="preset-title">${pr.title}</span>`;
+    btn.addEventListener("click", () => loadPreset(idx));
+    bar.appendChild(btn);
+  });
+}
+
+function loadPreset(idx) {
+  state.presetIndex = idx;
+  state.simTime = 0.0;
+  const pr = PRESETS[idx];
+  pr.setup();
+  document.getElementById("headerEquation").textContent = pr.equation;
+  document.getElementById("noteHeading").textContent = pr.noteTitle;
+  document.getElementById("noteBody").textContent = pr.noteBody;
+  document.getElementById("noteFormula").textContent = pr.noteFormula;
+  syncControlsFromState();
+  buildPresetButtons();
+  markFieldDirty(false);
+}
+
+function syncControlsFromState() {
+  const p = state.params;
+  document.getElementById("selVehicle").value = state.vehicleCode;
+  document.getElementById("selWiring").value = p.wiring;
+  document.getElementById("selSign").value = String(p.sign);
+  document.getElementById("selResponse").value = p.responseType;
+
+  const setSlider = (id, valId, v, digits = 1) => {
+    const el = document.getElementById(id);
+    if (el) el.value = v;
+    const vel = document.getElementById(valId);
+    if (vel) vel.textContent = Number(v).toFixed(digits);
+  };
+
+  setSlider("slPeakAt", "valPeakAt", p.peakAt, 1);
+  setSlider("slPeakWidth", "valPeakWidth", p.peakWidth, 2);
+  setSlider("slGain", "valGain", p.gain, 1);
+  setSlider("slBaseSpeed", "valBaseSpeed", p.baseSpeed, 1);
+  const s0 = state.sources[0];
+  if (s0) {
+    setSlider("slIntensity", "valIntensity", s0.intensity, 1);
+    setSlider("slFalloff", "valFalloff", s0.falloff, 1);
+  }
+  setSlider("slHorizon", "valHorizon", state.ftleHorizon, 1);
+  setSlider("slCaudateRate", "valCaudateRate", p.caudateRate, 2);
+  setSlider("slCaudateTarget", "valCaudateTarget", p.caudateTarget, 2);
+  setSlider("slJitter", "valJitter", p.jitter, 2);
+
+  // Show/hide caudate vs sensor sliders
+  const isV12 = state.vehicleCode === "12";
+  document.querySelectorAll('[data-group="caudate"]').forEach(el => {
+    el.style.display = isV12 ? "flex" : "none";
+  });
+  document.querySelectorAll('[data-group="sensor"]').forEach(el => {
+    el.style.display = isV12 ? "none" : "flex";
+  });
+
+  // Update toggles & titles
+  document.getElementById("btnToggleFTLE").classList.toggle("active-toggle", state.showFTLE);
+  document.getElementById("btnToggleBasins").classList.toggle("active-toggle", state.showBasins);
+  document.getElementById("btnToggleFlow").classList.toggle("active-toggle", state.showFlow);
+  document.getElementById("btnToggleTrails").classList.toggle("active-toggle", state.showTrails);
+
+  const rightTitle = document.getElementById("rightTitle");
+  const slot = document.getElementById("extraActionSlot");
+  slot.innerHTML = "";
+  if (state.vehicleCode === "5") {
+    rightTitle.textContent = "Fold/Latch Hysteresis Catastrophe & 9-Unit Brain";
+    const b = document.createElement("button");
+    b.textContent = "🩹 Reset Burn Memory (b → 0)";
+    b.onclick = () => {
+      state.particles.forEach(pt => { pt.moth = createMothBrain(); });
+    };
+    slot.appendChild(b);
+  } else if (state.vehicleCode === "12") {
+    rightTitle.textContent = "Cortical Ring, Order Parameter Z(t) & Caudate Control";
+    const mkBtn = (label, fn) => {
+      const b = document.createElement("button");
+      b.textContent = label;
+      b.style.marginLeft = "4px";
+      b.onclick = fn;
+      slot.appendChild(b);
+    };
+    mkBtn("Silent (No Caudate)", () => {
+      state.particles.forEach((pt, i) => { pt.dream = createDaydreamerBrain(i, state.params.jitter, 2.0, false); });
+    });
+    mkBtn("Critical (Caudate On)", () => {
+      state.particles.forEach((pt, i) => { pt.dream = createDaydreamerBrain(i, state.params.jitter, 2.0, true); });
+    });
+    mkBtn("Flooded (Thresh=1)", () => {
+      state.particles.forEach((pt, i) => { pt.dream = createDaydreamerBrain(i, state.params.jitter, 1.0, false); });
+    });
+  } else {
+    rightTitle.textContent = "Synchronized Cylindrical Phase Space (r, ψ)";
+    if (state.presetIndex === 1) {
+      const mkArchBtn = (code, label) => {
+        const b = document.createElement("button");
+        b.textContent = label;
+        b.style.marginLeft = "4px";
+        if (state.vehicleCode === code) b.classList.add("active-toggle");
+        b.onclick = () => {
+          applyVehicleArchetype(code);
+          state.particles = [];
+          for (let k = 0; k < 10; k++) {
+            const ang = (TWO_PI * k) / 10;
+            state.particles.push(makeParticle(50 + 36 * Math.cos(ang), 50 + 36 * Math.sin(ang), (ang * 180 / Math.PI) + 150, k % 5));
+          }
+          markFieldDirty(false);
+        };
+        slot.appendChild(b);
+      };
+      mkArchBtn("3a", "3a Love");
+      mkArchBtn("2a", "2a Fear");
+      mkArchBtn("2b", "2b Aggression");
+      mkArchBtn("3b", "3b Explorer");
+      const qBtn = document.createElement("button");
+      qBtn.textContent = "🏁 Quartet (2a–3b)";
+      qBtn.style.marginLeft = "4px";
+      qBtn.onclick = () => {
+        state.particles = [
+          makeParticle(18, 36, 12, 1, 0, { wiring: "straight", sign: 1, responseType: "linear", peakAt: 4, peakWidth: 1.5, gain: 1.0, baseSpeed: 0.4, maxSpeed: 10.0 }, "2a Fear"),
+          makeParticle(18, 45, 8, 2, 1, { wiring: "crossed", sign: 1, responseType: "linear", peakAt: 4, peakWidth: 1.5, gain: 1.0, baseSpeed: 0.4, maxSpeed: 10.0 }, "2b Aggression"),
+          makeParticle(18, 55, -8, 3, 2, { wiring: "straight", sign: -1, responseType: "linear", peakAt: 4, peakWidth: 1.5, gain: 0.6, baseSpeed: 5.0, maxSpeed: 5.0 }, "3a Love"),
+          makeParticle(18, 64, -12, 4, 3, { wiring: "crossed", sign: -1, responseType: "linear", peakAt: 4, peakWidth: 1.5, gain: 0.6, baseSpeed: 5.0, maxSpeed: 5.0 }, "3b Explorer")
+        ];
+      };
+      slot.appendChild(qBtn);
+    }
+  }
+}
+
+// Bind dropdowns & sliders
+document.getElementById("selVehicle").addEventListener("change", (e) => {
+  applyVehicleArchetype(e.target.value);
+  state.particles = state.particles.slice(0, 12).map((p, i) =>
+    makeParticle(p.x, p.y, (p.heading * 180) / Math.PI, p.hueIdx, i)
+  );
+  markFieldDirty(false);
+});
+
+["selWiring", "selSign", "selResponse"].forEach(id => {
+  document.getElementById(id).addEventListener("change", () => {
+    state.params.wiring = document.getElementById("selWiring").value;
+    state.params.sign = Number(document.getElementById("selSign").value);
+    state.params.responseType = document.getElementById("selResponse").value;
+    markFieldDirty(false);
+  });
+});
+
+function bindSlider(id, valId, digits, onUpdate) {
+  const el = document.getElementById(id);
+  el.addEventListener("input", () => {
+    const v = Number(el.value);
+    document.getElementById(valId).textContent = v.toFixed(digits);
+    onUpdate(v);
+  });
+}
+
+bindSlider("slPeakAt", "valPeakAt", 1, v => { state.params.peakAt = v; markFieldDirty(true); });
+bindSlider("slPeakWidth", "valPeakWidth", 2, v => { state.params.peakWidth = v; markFieldDirty(true); });
+bindSlider("slGain", "valGain", 1, v => { state.params.gain = v; markFieldDirty(true); });
+bindSlider("slBaseSpeed", "valBaseSpeed", 1, v => { state.params.baseSpeed = v; markFieldDirty(true); });
+bindSlider("slIntensity", "valIntensity", 1, v => {
+  state.sources.forEach(s => { s.intensity = v; });
+  markFieldDirty(true);
+});
+bindSlider("slFalloff", "valFalloff", 1, v => {
+  state.sources.forEach(s => { s.falloff = v; });
+  markFieldDirty(true);
+});
+bindSlider("slHorizon", "valHorizon", 1, v => { state.ftleHorizon = v; markFieldDirty(true); });
+bindSlider("slCaudateRate", "valCaudateRate", 2, v => { state.params.caudateRate = v; });
+bindSlider("slCaudateTarget", "valCaudateTarget", 2, v => { state.params.caudateTarget = v; });
+bindSlider("slJitter", "valJitter", 2, v => {
+  state.params.jitter = v;
+  state.particles.forEach((pt, i) => {
+    if (pt.dream) pt.dream = createDaydreamerBrain(i, v, pt.dream.baseThreshold, pt.dream.caudateEnabled);
+  });
+});
+
+// Top & Footer Action Buttons
+document.getElementById("btnPlayPause").addEventListener("click", () => {
+  state.playing = !state.playing;
+  document.getElementById("btnPlayPause").textContent = state.playing ? "⏸ Pause" : "▶ Play";
+});
+
+document.getElementById("btnStep").addEventListener("click", () => {
+  state.playing = false;
+  document.getElementById("btnPlayPause").textContent = "▶ Play";
+  stepSimulation();
+});
+
+document.getElementById("btnSwarm").addEventListener("click", () => releaseSwarm(800));
+document.getElementById("btnReset").addEventListener("click", () => loadPreset(state.presetIndex));
+
+document.getElementById("btnTheme").addEventListener("click", () => {
+  state.theme = state.theme === "cosmic" ? "textbook" : "cosmic";
+  document.documentElement.setAttribute("data-theme", state.theme);
+  document.getElementById("btnTheme").textContent = state.theme === "cosmic"
+    ? "☀ Strogatz Textbook"
+    : "🌌 Cosmic Dark";
+  bakeFTLEOffscreen();
+});
+
+document.getElementById("btnToggleFTLE").addEventListener("click", () => {
+  state.showFTLE = !state.showFTLE;
+  syncControlsFromState();
+  if (state.showFTLE) computeFTLEGrid(104);
+});
+
+document.getElementById("btnToggleBasins").addEventListener("click", () => {
+  state.showBasins = !state.showBasins;
+  syncControlsFromState();
+  if (state.showBasins) computeFTLEGrid(104);
+});
+
+document.getElementById("btnToggleFlow").addEventListener("click", () => {
+  state.showFlow = !state.showFlow;
+  syncControlsFromState();
+});
+
+document.getElementById("btnToggleTrails").addEventListener("click", () => {
+  state.showTrails = !state.showTrails;
+  syncControlsFromState();
+});
+
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space" && e.target.tagName !== "INPUT" && e.target.tagName !== "SELECT") {
+    e.preventDefault();
+    document.getElementById("btnPlayPause").click();
+  }
+});
+
+// Arena Pointer Interactions: Drag Lamps, Shift+Click Add/Remove Lamp, Click/Drag Launch Vehicle
+function pointerPos(evt) {
+  const rect = arenaCanvas.getBoundingClientRect();
+  const cx = ((evt.clientX - rect.left) / rect.width) * arenaCanvas.width;
+  const cy = ((evt.clientY - rect.top) / rect.height) * arenaCanvas.height;
+  return [cx, cy];
+}
+
+arenaCanvas.addEventListener("mousedown", (e) => {
+  const [cx, cy] = pointerPos(e);
+  const [wx, wy] = canvasToWorld(cx, cy, arenaCanvas.width, arenaCanvas.height);
+
+  // Hit-test existing lamps
+  let hitIdx = -1;
+  for (let m = 0; m < state.sources.length; m++) {
+    const [sx, sy] = worldToCanvas(state.sources[m].x, state.sources[m].y, arenaCanvas.width, arenaCanvas.height);
+    if (Math.hypot(cx - sx, cy - sy) < 18) { hitIdx = m; break; }
+  }
+
+  if (e.shiftKey) {
+    if (hitIdx >= 0) {
+      state.sources.splice(hitIdx, 1);
+    } else {
+      const i0 = Number(document.getElementById("slIntensity").value) || 10.0;
+      const f0 = Number(document.getElementById("slFalloff").value) || 15.0;
+      state.sources.push({ x: wx, y: wy, intensity: i0, falloff: f0, active: true });
+    }
+    markFieldDirty(false);
+    return;
+  }
+
+  if (hitIdx >= 0) {
+    state.dragLampIdx = hitIdx;
+    return;
+  }
+
+  state.launchDrag = { x0: cx, y0: cy, x1: cx, y1: cy, wx0: wx, wy0: wy };
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (state.dragLampIdx >= 0) {
+    const [cx, cy] = pointerPos(e);
+    const [wx, wy] = canvasToWorld(cx, cy, arenaCanvas.width, arenaCanvas.height);
+    state.sources[state.dragLampIdx].x = Math.max(2, Math.min(state.arenaW - 2, wx));
+    state.sources[state.dragLampIdx].y = Math.max(2, Math.min(state.arenaH - 2, wy));
+    markFieldDirty(true);
+  } else if (state.launchDrag) {
+    const [cx, cy] = pointerPos(e);
+    state.launchDrag.x1 = cx;
+    state.launchDrag.y1 = cy;
+  }
+});
+
+window.addEventListener("mouseup", () => {
+  if (state.dragLampIdx >= 0) {
+    state.dragLampIdx = -1;
+    markFieldDirty(false);
+  }
+  if (state.launchDrag) {
+    const { x0, y0, x1, y1, wx0, wy0 } = state.launchDrag;
+    let hDeg = 0;
+    if (Math.hypot(x1 - x0, y1 - y0) > 6) {
+      hDeg = (Math.atan2(-(y1 - y0), x1 - x0) * 180) / Math.PI;
+    } else if (state.sources.length > 0) {
+      const s = state.sources[0];
+      hDeg = (Math.atan2(s.y - wy0, s.x - wx0) * 180) / Math.PI;
+    }
+    state.particles.push(makeParticle(wx0, wy0, hDeg, state.particles.length % 5, state.particles.length));
+    state.launchDrag = null;
+  }
+});
+
+// 4K PNG Exporter (3840 x 2160 high-DPI composite poster!)
+document.getElementById("btnExport4K").addEventListener("click", () => {
+  const exp = document.createElement("canvas");
+  exp.width = 3840;
+  exp.height = 2160;
+  const ctx = exp.getContext("2d");
+  const cosmic = state.theme === "cosmic";
+
+  ctx.fillStyle = cosmic ? "#050714" : "#f4f1ea";
+  ctx.fillRect(0, 0, 3840, 2160);
+
+  // Header Banner
+  ctx.fillStyle = cosmic ? "#eef2ff" : "#18181b";
+  ctx.font = "700 58px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText(`Braitenberg × Strogatz — ${PRESETS[state.presetIndex].title}`, 120, 118);
+
+  ctx.fillStyle = cosmic ? "#38bdf8" : "#0369a1";
+  ctx.font = "italic 40px Georgia, serif";
+  ctx.fillText(PRESETS[state.presetIndex].equation, 120, 178);
+
+  // Render crisp 1740x1740 sub-canvases
+  const subA = document.createElement("canvas");
+  subA.width = 1740; subA.height = 1740;
+  drawArena(subA.getContext("2d"), 1740, 1740);
+
+  const subP = document.createElement("canvas");
+  subP.width = 1740; subP.height = 1740;
+  drawPhaseSpace(subP.getContext("2d"), 1740, 1740);
+
+  ctx.drawImage(subA, 120, 240);
+  ctx.drawImage(subP, 1980, 240);
+
+  ctx.strokeStyle = cosmic ? "rgba(56,189,248,0.45)" : "#18181b";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(120, 240, 1740, 1740);
+  ctx.strokeRect(1980, 240, 1740, 1740);
+
+  ctx.fillStyle = cosmic ? "#94a3c8" : "#52525b";
+  ctx.font = "600 30px monospace";
+  ctx.fillText(
+    `t = ${state.simTime.toFixed(2)}s  |  N = ${state.particles.length}  |  Vehicle ${state.vehicleCode}  |  Theme: ${state.theme}`,
+    120, 2060
+  );
+
+  const link = document.createElement("a");
+  link.download = `braitenberg_strogatz_${state.vehicleCode}_${state.theme}_4k.png`;
+  link.href = exp.toDataURL("image/png");
+  link.click();
+});
+
+/* ============================================================================
+ * 10. 60 FPS ANIMATION LOOP
+ * ============================================================================ */
+
+function frameLoop() {
+  if (state.playing) {
+    stepSimulation();
+  }
+  drawArena(actx, arenaCanvas.width, arenaCanvas.height);
+  drawPhaseSpace(pctx, phaseCanvas.width, phaseCanvas.height);
+
+  document.getElementById("arenaReadout").textContent =
+    `t = ${state.simTime.toFixed(2)} s · Lamps = ${state.sources.length} · N = ${state.particles.length}`;
+
+  if (state.particles.length > 0 && state.sources.length > 0 && state.vehicleCode !== "12") {
+    const lead = state.particles[0];
+    const { r, psi } = nearestPolar(lead.x, lead.y, lead.heading);
+    document.getElementById("phaseReadout").textContent =
+      `Lead: r = ${r.toFixed(1)}, ψ = ${(psi * 180 / Math.PI).toFixed(1)}°, v = ${lead.speed.toFixed(2)}`;
+  } else if (state.vehicleCode === "12" && state.particles[0]?.dream) {
+    const d = state.particles[0].dream;
+    const z = d.orderHistory[d.orderHistory.length - 1];
+    document.getElementById("phaseReadout").textContent =
+      `|Z| = ${(z ? z.R : 0).toFixed(3)}, offset = ${d.visibleOffset.toFixed(2)}, A = ${d.activity.toFixed(0)}`;
+  }
+
+  requestAnimationFrame(frameLoop);
+}
+
+loadPreset(0);
+requestAnimationFrame(frameLoop);
+</script>
+</body>
+</html>
