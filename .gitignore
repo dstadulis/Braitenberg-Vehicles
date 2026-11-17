@@ -6,3 +6,6 @@ build/
 dist/
 .venv/
 runs/
+*.mp4
+experiments/strogatz-dynamics/media/mp4/
+
