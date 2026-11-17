@@ -190,6 +190,8 @@ Each example is a scenario in `scenarios/`. Run it with `python -m braitenberg` 
 | Vehicle 13: Once bitten | Rammed once, relives it while upset, and from then on runs from every green vehicle | `python -m braitenberg scenarios/vehicle13-once-bitten.yaml` |
 | Vehicle 14: Optimist | At a fork, imagines each lane in turn and takes the one that leads to food it cannot sense | `python -m braitenberg scenarios/vehicle14-optimist.yaml` |
 | Vehicle 14: Impatient | Waiting for a carrier that brings food, taps at nothing now and then, as if that could hasten it | `python -m braitenberg scenarios/vehicle14-impatient.yaml` |
+| Dynamics: Twin-lamp separatrix | 3a and 4a straddling the midline saddle split toward opposite lamps | `python -m braitenberg scenarios/dynamics-twin-lamp-separatrix.yaml` |
+| Dynamics: Three-body orbiter | Tiny heading differences send 4a orbiters onto distinct limit cycles and chaotic tours | `python -m braitenberg scenarios/dynamics-three-body-orbiter.yaml` |
 
 In the window:
 
@@ -200,6 +202,7 @@ In the window:
 | R | Restart the scenario |
 | T | Show or hide the trails |
 | V | Show or hide the selected vehicle's camera views |
+| D | Cycle the live dynamics overlay (flow field, phase portrait, both) |
 | + / − | Faster or slower |
 | Tab | Show the next stimulus in the heat map (e.g. `red` and `green`) |
 | Drag a source | Move it; the vehicles react to the new field |
@@ -225,6 +228,16 @@ pytest -m slow                                                                  
 
 An evolution file (`evolutions/`) names a vehicle, a world and the numbers that may change. Each vehicle is tried alone and selection keeps the ones that last longest before running out of energy. The results (a log, the best vehicle as a definition file, and plots) go to `runs/`. See [specs/vehicle-06.md](specs/vehicle-06.md).
 
+### Nonlinear dynamics
+
+```
+pip install -e ".[analysis,record]"                                                  # matplotlib and pillow
+python -m braitenberg.dynamics poster --act atlas --out-dir runs/                    # 4K phase-space atlas
+python -m braitenberg.dynamics showcase --out-dir experiments/strogatz-dynamics/media
+```
+
+`braitenberg.dynamics` analyzes Vehicles 1 to 12 as dynamical systems — polar phase portraits, Finite-Time Lyapunov Exponent ridges, hysteresis and synaptic bifurcations, and Vehicle 12's cortical ring order parameter — and renders posters and 60 fps animations without opening a window. See [specs/dynamics.md](specs/dynamics.md).
+
 A simulation is built from three kinds of YAML files: worlds (`worlds/`), vehicle definitions (`vehicles/`) and scenarios that combine them (`scenarios/`). See [specs/scenarios.md](specs/scenarios.md).
 
 ## Experiments
@@ -232,6 +245,7 @@ A simulation is built from three kinds of YAML files: worlds (`worlds/`), vehicl
 Explorations outside the simulator, each in its own folder under `experiments/` with a README:
 
 - [A CSCG learns the traffic light](experiments/cscg/README.md): a clone-structured cognitive graph learns the sequence the Vehicle 11 cautious driver learns with Ergotrix wires, and also when each color will change.
+- [Synthetic psychology as nonlinear dynamics](experiments/strogatz-dynamics/README.md): phase portraits, Finite-Time Lyapunov Exponent ridges, synaptic bifurcations at `0.7` and Vehicle 12's ring order parameter, with an offline interactive browser lab ([`explorer.html`](experiments/strogatz-dynamics/explorer.html)) and the poster and animation studio `python -m braitenberg.dynamics`.
 
 ## Images for the specs
 
