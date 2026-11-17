@@ -97,7 +97,13 @@ def test_never_imports_pygame() -> None:
         "import braitenberg.dynamics.__main__; "
         "assert 'pygame' not in sys.modules, 'pygame was imported!'"
     )
-    proc = subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True)
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     assert proc.returncode == 0
 
 

@@ -24,6 +24,7 @@ from matplotlib.colors import Normalize, to_rgba
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle, FancyArrowPatch, Polygon
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 from PIL import Image
 
@@ -258,7 +259,7 @@ class CometArtist:
                     np.abs(ys_arr[1:] - ys_arr[:-1]) < 0.45 * h
                 )
             if self.psi_wrap:
-                valid &= np.abs(ys_arr[1:] - ys_arr[:-1]) < (math.pi * 0.85)
+                valid &= np.abs(ys_arr[1:] - ys_arr[:-1]) < 0.42
 
             ramp = np.linspace(0.06, 1.0, t_len - 1)[:, None]
             rgba = np.broadcast_to(base_rgba[None, :, :], (t_len - 1, n_p, 4)).copy()
@@ -809,7 +810,9 @@ def build_act2_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
         )
         for sx, sy in sources:
             plot_lamp_beacon(ax_ftle, sx, sy, theme, size=72, zorder=8)
-        cbar = fig.colorbar(im, ax=ax_ftle, fraction=0.044, pad=0.025)
+        divider = make_axes_locatable(ax_ftle)
+        cax = divider.append_axes("right", size="4.5%", pad=0.08)
+        cbar = fig.colorbar(im, cax=cax)
         cbar.set_label(r"$\sigma_T\;(\mathrm{s}^{-1})$", color=theme.fg_muted, fontsize=8.3)
         cbar.ax.tick_params(colors=theme.fg_dim, labelsize=7.5)
         cbar.outline.set_edgecolor(theme.spine)
@@ -881,6 +884,7 @@ def build_act2_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             cmap=ftle_cmap(theme),
             vmin=vmin,
             vmax=max(vmax, vmin + 1e-4),
+            interpolation="bilinear",
             alpha=0.35 if theme.is_dark else 0.24,
             aspect="equal",
             zorder=1,
@@ -986,6 +990,35 @@ def _nearest_lamp_distance(x: np.ndarray, y: np.ndarray, world: World) -> np.nda
         dx, dy = world.arena.delta(x - sx, y - sy)
         dists.append(np.hypot(dx, dy))
     return np.minimum.reduce(dists)
+
+
+def _nearest_lamp_polar(
+    x: np.ndarray,
+    y: np.ndarray,
+    heading: np.ndarray,
+    world: World,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return ``(r_min, psi_nearest)`` in body-frame polar coordinates relative to the nearest lamp."""
+    from braitenberg.dynamics.phase_plane import wrap_pi
+
+    sources = _primary_sources(world, "light")
+    if not sources:
+        return np.zeros_like(x), np.asarray(wrap_pi(heading), dtype=float)
+    d_list, dx_list, dy_list = [], [], []
+    for sx, sy in sources:
+        dx_to_s, dy_to_s = world.arena.delta(sx - x, sy - y)
+        dx_list.append(dx_to_s)
+        dy_list.append(dy_to_s)
+        d_list.append(np.hypot(dx_to_s, dy_to_s))
+    d_stack = np.stack(d_list, axis=0)
+    dx_stack = np.stack(dx_list, axis=0)
+    dy_stack = np.stack(dy_list, axis=0)
+    best_idx = np.argmin(d_stack, axis=0)
+    r_min = np.take_along_axis(d_stack, best_idx[None, ...], axis=0)[0]
+    dx_best = np.take_along_axis(dx_stack, best_idx[None, ...], axis=0)[0]
+    dy_best = np.take_along_axis(dy_stack, best_idx[None, ...], axis=0)[0]
+    psi_nearest = np.asarray(wrap_pi(np.arctan2(dy_best, dx_best) - heading), dtype=float)
+    return r_min, psi_nearest
 
 
 def build_act3_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int | None = None) -> Figure:
@@ -1402,9 +1435,9 @@ def build_act4_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             lx, ly = (ring_rad + 0.085) * math.cos(node_angles[k]), (ring_rad + 0.085) * math.sin(node_angles[k])
             ax_z.text(lx, ly, f"$I_{k}$", color=theme.fg_muted, fontsize=7.6, ha="center", va="center", path_effects=text_halo(theme), zorder=9)
 
-        ax_z.set_xlim(-0.58, 1.08)
-        ax_z.set_ylim(-0.58, 0.58)
-        leg_b = ax_z.legend(loc="lower right")
+        ax_z.set_xlim(-0.58, 1.32)
+        ax_z.set_ylim(-0.70, 0.62)
+        leg_b = ax_z.legend(loc="lower right", fontsize=7.3 if compact else 8.1)
         style_legend(leg_b, theme)
 
         # --- Panel C: Spatiotemporal Raster & Caudate Threshold Breathing ---
@@ -1877,7 +1910,16 @@ def _setup_orbiter_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int) -
     style_axes(ax_arena, theme, tag="A", title="Physical Arena · 150 Comet Particles", xlabel=r"$x$", ylabel=r"$y$", grid=False)
     gx, gy = np.meshgrid(np.linspace(0, 100, 120), np.linspace(0, 100, 120))
     field = world.stimulus_at("light", gx, gy) / 10.0
-    ax_arena.imshow(field, origin="lower", extent=[0, 100, 0, 100], cmap=field_cmap(theme), alpha=0.45 if theme.is_dark else 0.30, aspect="equal", zorder=1)
+    ax_arena.imshow(
+        field,
+        origin="lower",
+        extent=[0, 100, 0, 100],
+        cmap=field_cmap(theme),
+        interpolation="bilinear",
+        alpha=0.45 if theme.is_dark else 0.30,
+        aspect="equal",
+        zorder=1,
+    )
     lc = fpc.get("limit_cycle")
     r_star = float(lc.get("r_mean", 18.4)) if lc else 18.4
     ring_th = np.linspace(0, 2 * math.pi, 200)
@@ -1939,15 +1981,16 @@ def _precompute_ftle_scene() -> dict:
         return _SCENE_CACHE["ftle_swarm"]
 
     from braitenberg.dynamics.lagrangian import compute_ftle_and_basins, simulate_swarm_ensemble
+    from braitenberg.dynamics.phase_plane import find_fixed_points_and_cycles
 
     world = _three_lamp_world()
     v4a = _vehicle_def("vehicle4a-orbiter.yaml")
     lcs = compute_ftle_and_basins(v4a, world, nx=115, ny=115, horizon=11.5, dt=0.05)
     swarm_sep = simulate_swarm_ensemble(
-        v4a, world, n_particles=180, steps=480, dt=0.04, seed=7, init_mode="separatrix", noise_scale=0.0
+        v4a, world, n_particles=180, steps=560, dt=0.04, seed=7, init_mode="separatrix", noise_scale=0.0
     )
     swarm_ring = simulate_swarm_ensemble(
-        v4a, world, n_particles=120, steps=480, dt=0.04, seed=11, init_mode="circle", noise_scale=0.0
+        v4a, world, n_particles=120, steps=560, dt=0.04, seed=11, init_mode="circle", noise_scale=0.0
     )
     swarm = {
         "t": swarm_sep["t"],
@@ -1956,7 +1999,20 @@ def _precompute_ftle_scene() -> dict:
         "heading": np.concatenate([swarm_sep["heading"], swarm_ring["heading"]], axis=1),
         "basin_id": np.concatenate([swarm_sep["basin_id"], swarm_ring["basin_id"]], axis=0),
     }
-    res = {"world": world, "lcs": lcs, "swarm": swarm, "dt": 0.04}
+
+    # Compute exact single-lamp preferred orbit radius r* dynamically for whatever world is active
+    s0 = world.stimuli["light"].sources[0]
+    ref_world = World(
+        name="ref",
+        arena=Arena(width=120.0, height=120.0, edges="wrap"),
+        stimuli={"light": Stimulus(name="light", sources=[Source((60.0, 60.0), s0.intensity, s0.falloff)])},
+    )
+    fpc_ref = find_fixed_points_and_cycles(v4a, ref_world, r_bounds=(2.0, 48.0))
+    lc_ref = fpc_ref.get("limit_cycle")
+    fallback_r = float(s0.falloff * math.sqrt(max(s0.intensity / 4.0 - 1.0, 0.0)))
+    r_star = float(lc_ref.get("r_mean", fallback_r)) if lc_ref else fallback_r
+
+    res = {"world": world, "lcs": lcs, "swarm": swarm, "r_star": r_star, "dt": 0.04}
     _SCENE_CACHE["ftle_swarm"] = res
     return res
 
@@ -1966,6 +2022,7 @@ def _setup_ftle_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int) -> C
     world: World = data["world"]
     lcs = data["lcs"]
     swarm = data["swarm"]
+    r_star = float(data["r_star"])
     sources = _primary_sources(world, "light")
 
     compact = aspect != "16:9"
@@ -2007,25 +2064,28 @@ def _setup_ftle_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int) -> C
     ax_arena.set_xlim(0, world.arena.width)
     ax_arena.set_ylim(0, world.arena.height)
 
-    # Right panel: Nearest-Lamp Cylindrical Projection (r_nearest, heading) + Basin Divergence
+    # Right panel: Nearest-Lamp Cylindrical Projection (r_min, psi_nearest)
     style_axes(
         ax_right,
         theme,
         tag="B",
-        title="Attractor Partition in Nearest-Lamp Phase Space",
+        title=r"Attractor Partition in Nearest-Lamp $(r_{\min}, \psi)$",
         xlabel=r"Distance to nearest lamp $r_{\min}$",
-        ylabel=r"Heading $\theta \in [-\pi, \pi]$",
+        ylabel=r"Bearing $\psi \in [-\pi, \pi]$",
     )
-    ax_right.axvline(18.4, color=theme.gold if theme.is_dark else theme.amber, lw=1.3, ls="--", alpha=0.78, label=r"Preferred orbit $r^*\approx 18.4$")
-    ax_right.set_xlim(0.0, 50.0)
+    lc_col = theme.gold if theme.is_dark else theme.amber
+    ax_right.axvline(r_star, color=lc_col, lw=1.35, ls="--", alpha=0.80, label=f"Preferred orbit $r^*\\approx{r_star:.1f}$")
+    for sgn in (1.0, -1.0):
+        ax_right.axhline(sgn * math.pi / 2, color=theme.fg_dim, lw=0.8, ls=":", alpha=0.48, zorder=2)
+    ax_right.set_xlim(0.0, max(50.0, 0.44 * world.arena.width))
     _format_psi_axis(ax_right)
     leg = ax_right.legend(loc="upper right")
     style_legend(leg, theme)
 
     xs = np.asarray(swarm["x"], dtype=float)
     ys = np.asarray(swarm["y"], dtype=float)
-    hdgs = np.arctan2(np.sin(np.asarray(swarm["heading"], dtype=float)), np.cos(np.asarray(swarm["heading"], dtype=float)))
-    r_min_arr = _nearest_lamp_distance(xs, ys, world)
+    hdgs = np.asarray(swarm["heading"], dtype=float)
+    r_min_arr, psi_near_arr = _nearest_lamp_polar(xs, ys, hdgs, world)
     bids = np.asarray(swarm["basin_id"], dtype=int)
     base_rgba = np.array(
         [to_rgba(b_cols[int(b) % len(b_cols)] if int(b) >= 0 else theme.violet) for b in bids],
@@ -2046,7 +2106,7 @@ def _setup_ftle_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int) -> C
         step = min(total_steps - 1, int(round(f_idx * (total_steps - 1) / max(1, n_frames - 1))))
         s0 = max(0, step - tail)
         comet_arena.update(xs[s0 : step + 1], ys[s0 : step + 1], base_rgba)
-        comet_phase.update(r_min_arr[s0 : step + 1], hdgs[s0 : step + 1], base_rgba)
+        comet_phase.update(r_min_arr[s0 : step + 1], psi_near_arr[s0 : step + 1], base_rgba)
         t_now = float(swarm["t"][step]) if "t" in swarm else step * data["dt"]
         badge.set_text(f"t = {t_now:.1f} s   N = {xs.shape[1]} vehicles")
 
@@ -2225,15 +2285,15 @@ def _setup_daydreamer_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int
     th_circle = np.linspace(0, 2 * math.pi, 180)
     ax_ring.plot(ring_rad * np.cos(th_circle), ring_rad * np.sin(th_circle), color=theme.fg_dim, lw=0.8, ls=":", alpha=0.45, zorder=2)
     ax_ring.scatter([0.0], [0.0], s=95, marker="D", c=[theme.violet], edgecolors="#ffffff" if theme.is_dark else theme.fg, zorder=8)
-    ax_ring.set_xlim(-0.73, 0.73)
-    ax_ring.set_ylim(-0.66, 0.80)
+    ax_ring.set_xlim(-0.82, 0.82)
+    ax_ring.set_ylim(-0.68, 0.96)
 
     node_halo = ax_ring.scatter(nx_r, ny_r, s=np.full(8, 220.0), c=[theme.panel_bg] * 8, alpha=0.30, edgecolors="none", zorder=6.5) if theme.glow_enabled else None
     node_core = ax_ring.scatter(nx_r, ny_r, s=np.full(8, 120.0), c=[theme.panel_bg] * 8, edgecolors=theme.fg_muted, linewidths=1.3, zorder=7)
     z_vec_line = ax_ring.plot([0.0, 0.0], [0.0, 0.0], color=theme.gold if theme.is_dark else theme.coral, lw=2.5, zorder=8.5)[0]
     comet_z = CometArtist(ax_ring, theme, max_lw=2.2, head_size=36.0, zorder=7.5)
     caudate_badge = ax_ring.text(
-        0.03, 0.965, "", transform=ax_ring.transAxes, va="top", ha="left",
+        0.50, 0.965, "", transform=ax_ring.transAxes, va="top", ha="center",
         color=theme.fg, fontsize=7.8, fontweight="bold", bbox=badge_bbox(theme), zorder=10,
     )
 

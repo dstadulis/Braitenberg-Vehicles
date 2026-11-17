@@ -382,6 +382,7 @@ def style_legend(legend: mpl.legend.Legend | None, theme: Theme) -> None:
     """Style a Matplotlib legend card with clean contrast and no visual clutter."""
     if legend is None:
         return
+    legend.set_zorder(12)
     frame = legend.get_frame()
     frame.set_facecolor(theme.panel_bg)
     frame.set_edgecolor(theme.spine)
