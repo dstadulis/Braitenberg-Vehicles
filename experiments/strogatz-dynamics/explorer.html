@@ -1238,6 +1238,7 @@ function makeParticle(x, y, headingDeg, hueIdx = 0, seed = 0, customParams = nul
     lastReading: 0.0,
     trailX: new Float64Array(TRAIL_LEN),
     trailY: new Float64Array(TRAIL_LEN),
+    trailH: new Float64Array(TRAIL_LEN),
     trailHead: 0,
     trailCount: 0,
     moth: null,
@@ -1245,6 +1246,7 @@ function makeParticle(x, y, headingDeg, hueIdx = 0, seed = 0, customParams = nul
   };
   p.trailX[0] = x;
   p.trailY[0] = y;
+  p.trailH[0] = rad;
   p.trailCount = 1;
   if (state.vehicleCode === "5") {
     p.moth = createMothBrain();
@@ -1258,6 +1260,7 @@ function recordTrail(p) {
   p.trailHead = (p.trailHead + 1) % TRAIL_LEN;
   p.trailX[p.trailHead] = p.ux;
   p.trailY[p.trailHead] = p.uy;
+  p.trailH[p.trailHead] = p.heading;
   if (p.trailCount < TRAIL_LEN) p.trailCount++;
 }
 
@@ -1267,7 +1270,7 @@ const PRESETS = [
     title: "Supercritical Limit Cycle (4a Orbiter)",
     equation: "ṙ = −v(r, ψ) cos ψ ,   ψ̇ = (v/r) sin ψ − ω(r, ψ)",
     noteTitle: "Act I — Birth of a Biological Orbit",
-    noteBody: "Around a single isotropic lamp, translational and rotational symmetry collapse the 3D arena state (x, y, θ) onto a 2D cylinder (r, ψ). Because Vehicle 4a wires Gaussian-peaked sensors contralaterally, steering reverses sign across S(r*) = a: far away it steers like Aggression (2b) inward; too close it steers outward. Watch trajectories both inside and outside r* ≈ 19.9 spiral onto an isolated stable limit cycle!",
+    noteBody: "Around a single isotropic lamp, translational and rotational symmetry collapse the 3D arena state (x, y, θ) onto a 2D cylinder (r, ψ). Because Vehicle 4a wires Gaussian-peaked sensors contralaterally, steering reverses sign across S(r*) = a: far away it steers inward; too close it steers outward. In the arena this births an isolated circular limit cycle at r_lc ≈ 19.9, which quotients on the (r, ψ) cylinder to a symmetric pair of stable spiral relative equilibria at (r_lc, ±π/2)!",
     noteFormula: "S(r*) = I₀ / (1 + (r*/ℓ)²) = a   ⇒   ∂ω/∂ψ flips sign across r = r*",
     setup() {
       state.arenaW = 120; state.arenaH = 120;
@@ -1981,34 +1984,88 @@ function drawCylindricalPolarCanvas(ctx, cw, ch) {
   strokeZeroContour(ctx, DR, nx, ny, pad.l, pad.t, pw, ph, cosmic ? "#34d399" : "#047857", 2.0, [6, 5]);
   strokeZeroContour(ctx, DPSI, nx, ny, pad.l, pad.t, pw, ph, cosmic ? "#fbbf24" : "#b45309", 2.3, []);
 
-  // Detect & draw closed limit cycle or Strogatz fixed points
+  // Detect & draw closed limit cycle or SO(2) relative-equilibrium spiral sinks (+psi and -psi branches)
   if (state.params.wiring === "crossed" && state.params.responseType === "peak" && state.params.sign > 0) {
-    // Integrate reference trajectory in polar plane to highlight closed limit cycle!
-    let r = Math.min(rMax * 0.6, F0 * 1.35), psi = 1.25;
-    for (let s = 0; s < 700; s++) {
-      const d1 = polarDerivatives(r, psi, state.params, I0, F0);
-      r = Math.max(1.2, Math.min(rMax, r + d1.dr * 0.04));
-      psi = wrapPi(psi + d1.dpsi * 0.04);
-    }
-    ctx.save();
-    ctx.strokeStyle = cosmic ? "#fb7185" : "#be123c";
-    ctx.lineWidth = 3.0;
-    if (cosmic) { ctx.shadowColor = "#fb7185"; ctx.shadowBlur = 12; }
-    ctx.beginPath();
-    let prevPsi = null;
-    for (let s = 0; s < 320; s++) {
-      const d1 = polarDerivatives(r, psi, state.params, I0, F0);
-      r = Math.max(1.2, Math.min(rMax, r + d1.dr * 0.03));
-      psi = wrapPi(psi + d1.dpsi * 0.03);
-      if (r > rMin && r < rMax - 0.5) {
-        const [px, py] = toPx(r, psi);
-        if (prevPsi === null || Math.abs(psi - prevPsi) > 2.5) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-        prevPsi = psi;
+    let drewGuide = false;
+    for (const psiSign of [1.0, -1.0]) {
+      let r = Math.min(rMax * 0.6, F0 * 1.35), psi = psiSign * 1.25;
+      for (let s = 0; s < 700; s++) {
+        const d1 = polarDerivatives(r, psi, state.params, I0, F0);
+        r = Math.max(1.2, Math.min(rMax, r + d1.dr * 0.04));
+        psi = wrapPi(psi + d1.dpsi * 0.04);
       }
+      const orbPts = [];
+      let rMinOrb = Infinity, rMaxOrb = -Infinity;
+      for (let s = 0; s < 320; s++) {
+        const d1 = polarDerivatives(r, psi, state.params, I0, F0);
+        r = Math.max(1.2, Math.min(rMax, r + d1.dr * 0.03));
+        psi = wrapPi(psi + d1.dpsi * 0.03);
+        if (r < rMinOrb) rMinOrb = r;
+        if (r > rMaxOrb) rMaxOrb = r;
+        orbPts.push([r, psi]);
+      }
+      const rSpan = rMaxOrb - rMinOrb;
+      ctx.save();
+      const attCol = cosmic ? "#fb7185" : "#be123c";
+      if (rSpan > 0.15) {
+        ctx.strokeStyle = attCol;
+        ctx.lineWidth = 3.0;
+        if (cosmic) { ctx.shadowColor = "#fb7185"; ctx.shadowBlur = 12; }
+        ctx.beginPath();
+        let prevPsi = null;
+        for (const [ro, po] of orbPts) {
+          if (ro > rMin && ro < rMax - 0.5) {
+            const [px, py] = toPx(ro, po);
+            if (prevPsi === null || Math.abs(po - prevPsi) > 2.5) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+            prevPsi = po;
+          }
+        }
+        ctx.stroke();
+      } else if (r > rMin + 0.5 && r < rMax - 1.0) {
+        // Circular arena limit cycle quotients on (r, psi) to stable spiral relative equilibria at (r_lc, +-pi/2)
+        const [eqX, eqY] = toPx(r, psi);
+        if (!drewGuide) {
+          drewGuide = true;
+          ctx.save();
+          ctx.strokeStyle = cosmic ? "rgba(251, 113, 133, 0.36)" : "rgba(190, 18, 60, 0.32)";
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 5]);
+          ctx.beginPath();
+          ctx.moveTo(eqX, pad.t);
+          ctx.lineTo(eqX, pad.t + ph);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = attCol;
+          ctx.font = "700 11px -apple-system, sans-serif";
+          ctx.textAlign = "left";
+          ctx.fillText(`r_lc ≈ ${r.toFixed(1)}`, eqX + 6, pad.t + 16);
+          ctx.restore();
+        }
+        // Subtle spiral-sink halo + filled Strogatz stable equilibrium marker
+        ctx.strokeStyle = cosmic ? "rgba(251, 113, 133, 0.62)" : "rgba(190, 18, 60, 0.55)";
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        for (let k = 0; k <= 42; k++) {
+          const thS = (k / 42) * TWO_PI * 1.65 * psiSign;
+          const radS = 16.0 * (1.0 - 0.72 * (k / 42));
+          const sx = eqX + radS * Math.cos(thS);
+          const sy = eqY - radS * Math.sin(thS);
+          if (k === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+
+        if (cosmic) { ctx.shadowColor = "#fb7185"; ctx.shadowBlur = 14; }
+        ctx.fillStyle = attCol;
+        ctx.strokeStyle = cosmic ? "#ffffff" : "#18181b";
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.arc(eqX, eqY, 6.2, 0, TWO_PI);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
     }
-    ctx.stroke();
-    ctx.restore();
   }
 
   // Strogatz Fixed-Point Line for 3a Love (v = 0 equilibrium segment on psi = 0)
@@ -2052,7 +2109,7 @@ function drawCylindricalPolarCanvas(ctx, cw, ch) {
           const ti = ((lead.trailHead - (lead.trailCount - 1 - m)) % TRAIL_LEN + TRAIL_LEN) % TRAIL_LEN;
           const wx = ((lead.trailX[ti] % state.arenaW) + state.arenaW) % state.arenaW;
           const wy = ((lead.trailY[ti] % state.arenaH) + state.arenaH) % state.arenaH;
-          const { r, psi } = nearestPolar(wx, wy, lead.heading);
+          const { r, psi } = nearestPolar(wx, wy, lead.trailH[ti]);
           if (r < rMin || r > rMax) { prevPsi = null; continue; }
           const [px, py] = toPx(r, psi);
           if (prevPsi === null || Math.abs(psi - prevPsi) > 2.2 || Math.abs(r - prevR) > 14) ctx.moveTo(px, py);

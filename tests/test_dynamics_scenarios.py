@@ -225,6 +225,8 @@ def test_explorer_html_self_contained_and_physics_parity(tmp_path: Path):
     match = re.search(r"<script>([\s\S]*?)</script>", html)
     assert match is not None
     js_code = match.group(1)
+    assert "nearestPolar(wx, wy, lead.trailH[ti])" in js_code
+    assert "rSpan > 0.15" in js_code
 
     node_bin = shutil.which("node") or (
         "/opt/homebrew/bin/node" if Path("/opt/homebrew/bin/node").exists() else None

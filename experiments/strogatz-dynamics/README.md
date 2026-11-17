@@ -20,7 +20,7 @@ To a dynamical systems theorist, something even deeper is going on. **Every psyc
 |---|---|---|---|
 | *Rest & Devotion* | **3a Love** | Cylinder $\mathbb{R}_+ \times S^1$ | Stable fixed-point segment on $\psi = 0$ ($v = 0$, $\lambda_\psi < 0$) |
 | *Panic & Escape* | **2a Fear** | Cylinder $\mathbb{R}_+ \times S^1$ | Unstable head-on ray $\psi = 0$ ($\lambda_\psi > 0$) feeding $\psi = \pm\pi$ escape |
-| *Ambivalence / Instinct* | **4a Orbiter** | Cylinder $\mathbb{R}_+ \times S^1$ | **Isolated stable limit cycle** born from sign reversal of $R'(S)$ |
+| *Ambivalence / Instinct* | **4a Orbiter** | Cylinder $\mathbb{R}_+ \times S^1$ | **Isolated circular limit cycle** in $(x, y)$ $\equiv$ pair of **stable spiral relative equilibria** at $(r_{\text{lc}}, \pm\pi/2)$ on $(r, \psi)$ |
 | *Abrupt Decision* | **4b Decider** | $\mathbb{R}^2 \times S^1$ | **Piecewise-smooth grazing reflection** across step discontinuity $S = a$ |
 | *Hesitation & Whim* | **4a / 4b** in 2–3 lamps | $\mathbb{R}^2 \times S^1$ (3D flow) | **Hyperbolic saddle separatrices**, FTLE ridges & chaotic 3-body scattering |
 | *Trauma / Remorse* | **5 Moth** | $(\mathbb{R}^2 \times S^1) \times \{0, 1\}$ | **Irreversible fold/latch catastrophe** jumping between two phase sheets |
@@ -136,7 +136,7 @@ flowchart TD
   SignCheck -- "Ξ(r) > 0 everywhere<br/>(2b Aggression: χ=+1, σ=+1, R'>0)<br/>(3a Love: χ=-1, σ=-1, R'>0)" --> Attract{"Does forward speed v(r, 0)<br/>vanish before r = 0?"}
   Attract -- "No (2b: v grows with S)" --> Dive["Attracts to ψ = 0, accelerates<br/>straight through lamp!"]
   Attract -- "Yes (3a: v = max(0, v₀ - g S) = 0)" --> Rest["Stable Line of Equilibria on ψ = 0<br/>Comes to rest facing the lamp"]
-  SignCheck -- "Ξ(r) changes sign at S(r*) = a!<br/>(4a Orbiter: χ=+1, σ=+1, Gaussian Peak)" --> Orbit["r > r* : Ξ > 0 (turns inward)<br/>r < r* : Ξ < 0 (turns outward)<br/>⇒ Stable Limit Cycle at (r_lc, ±ψ_lc)!"]
+  SignCheck -- "Ξ(r) changes sign at S(r*) = a!<br/>(4a Orbiter: χ=+1, σ=+1, Gaussian Peak)" --> Orbit["r > r* : Ξ > 0 (turns inward)<br/>r < r* : Ξ < 0 (turns outward)<br/>⇒ Stable Spiral Relative Equilibria at (r_lc, ±π/2)<br/>= Circular Limit Cycle in Arena!"]
 ```
 
 ![Orbiter Limit Cycle Synchronization](media/orbiter.gif)
@@ -147,8 +147,8 @@ Look especially at **Vehicle 4a (*Orbiter*)** ([`vehicles/vehicle4a-orbiter.yaml
   $$S(r^*) = a \quad \Longleftrightarrow \quad r^* = \ell\sqrt{\frac{I_0}{a} - 1} = 15\sqrt{\frac{10}{4} - 1} \approx 18.37.$$
 - For $r > r^*$ ($S < a$), $R'(S) > 0$: the vehicle behaves like *Aggression* (2b) and curves *toward* the lamp.
 - For $r < r^*$ ($S > a$), $R'(S) < 0$: the vehicle behaves like *Fear* (2a) and curves *away* from the lamp!
-- Where can it settle? On the $\dot{r} = 0$ nullclines $\psi = \pm\pi/2$ (flying tangentially around the lamp, neither approaching nor receding!), the lamp sits closer to the inner eye than the outer eye by roughly $2 b_s$. Just slightly outside $r^*$ (at $r_{\text{lc}} \approx 19.9$ in `one-light.yaml`), the inner eye sits near the crest $S \approx a$ while the outer eye sits down the outer flank $S < a$, producing an inward contralateral torque $\omega > 0$ (for $\psi \approx +\pi/2$) that **exactly balances centrifugal parallax** $\frac{v}{r_{\text{lc}}}\sin\psi_{\text{lc}} = \omega(r_{\text{lc}}, \psi_{\text{lc}})$!
-- By the **Poincaré–Bendixson theorem** on the cylinder—bounded outside by inward phototaxis and bounded inside by outward repulsion—trajectories collapse onto a pair of **chirally symmetric, asymptotically stable limit cycles** (clockwise at $\psi \approx -\pi/2$, counterclockwise at $\psi \approx +\pi/2$). No clock, no oscillator neuron, no memory: the closed orbit is an emergent collaboration between a bell curve and a lamp!
+- Where can it settle? On the $\dot{r} = 0$ nullclines $\psi = \pm\pi/2$ (flying tangentially around the lamp, neither approaching nor receding!), the lamp sits closer to the inner eye than the outer eye by roughly $2 b_s$. Just slightly outside $r^*$ (at $r_{\text{lc}} \approx 19.90$ in `one-light.yaml`), the inner eye sits near the crest $S \approx a$ while the outer eye sits down the outer flank $S < a$, producing an inward contralateral torque $\omega > 0$ (for $\psi = +\pi/2$) that **exactly balances centrifugal parallax** $\frac{v}{r_{\text{lc}}}\sin(\pm\pi/2) = \omega(r_{\text{lc}}, \pm\pi/2)$!
+- Notice the elegance of $SO(2)$ symmetry reduction: on the reduced $(r, \psi)$ cylinder, these two transverse nullcline intersections at $(r_{\text{lc}}, +\pi/2)$ and $(r_{\text{lc}}, -\pi/2)$ are a chirally symmetric pair of **asymptotically stable spiral equilibria (relative equilibria)**! Reconstructing the suppressed azimuthal angle $\dot{\phi} = \pm v(r_{\text{lc}}, \pm\pi/2) / r_{\text{lc}} \neq 0$ lifts each point sink on the cylinder into an **isolated, asymptotically stable circular limit cycle** (counterclockwise for $+\pi/2$, clockwise for $-\pi/2$, period $T \approx 16.42\text{ s}$) in the physical arena. No clock, no oscillator neuron, no memory: the closed orbit is an emergent collaboration between a bell curve and a lamp!
 
 ---
 
@@ -224,7 +224,7 @@ Replace the Moth's one-way latch with a reversible **Schmitt-trigger hysteresis 
 $$\dot{E} = g_{\text{charge}}\,S(\mathbf{x}) - c_{\text{move}}\,|v| - c_{\text{basal}}, \qquad \text{full}(t + \tau) = \Theta\!\big(\Theta(E - 90) + \text{full}(t) - \Theta(30 - E) - 1\big).$$
 Because metabolic rates $\dot{E} \sim \mathcal{O}(1\text{ s}^{-1})$ evolve much more slowly than turning maneuvers, $(r(t), E(t), \text{full}(t))$ executes a classic **two-timescale relaxation oscillation**—the biological cousin of the **van der Pol oscillator**:
 1. **Hungry Seeking Branch ($\text{full} = 0$, $E: 30 \nearrow 90$):** Within sight of a lamp ($S_L + S_R \ge 3$), `seeking` suppresses the 3-neuron ring oscillator (`osc_a, osc_b, osc_c`), pulling $r \to 0$ so $g_{\text{charge}} S(\mathbf{x})$ rapidly refills $E$ up to the upper fold $E = 90$.
-2. **Satiated Dispersal Branch ($\text{full} = 1$, $E: 90 \searrow 30$):** Crossing $E = 90$ latches `full = 1`, silencing `seeking` and unleashing the 3-unit inhibitory ringzig-zag oscillator to carry the vehicle out into the dark while $E$ slowly drains down to the lower fold $E = 30$, completing the closed limit cycle in $(r, E)$ space!
+2. **Satiated Dispersal Branch ($\text{full} = 1$, $E: 90 \searrow 30$):** Crossing $E = 90$ latches `full = 1`, silencing `seeking` and unleashing the 3-unit inhibitory ring zig-zag oscillator to carry the vehicle out into the dark while $E$ slowly drains down to the lower fold $E = 30$, completing the closed limit cycle in $(r, E)$ space!
 
 ### 3.3 Piecewise-Smooth Synaptic Bifurcation at $w_c = 0.7$ (`Vehicles 7, 10, 11`)
 
@@ -291,7 +291,7 @@ $$Z(t) = \frac{1}{8}\sum_{k=0}^{7} y_k(t)\,e^{i 2\pi k / 8} = R(t)\,e^{i\Phi(t)}
 
 Notice the beautiful symmetry diagnostic encoded by $(A(t), R(t))$:
 - **Quiescent Coma:** $y_k \equiv 0 \implies A = 0,\; R = 0$.
-- **Epileptic Flood:** $y_k \equiv 1 \implies A = 8$, yet $\sum_{k=0}^7 e^{i 2\pi k/8} = 0 \implies \mathbf{R = 0}$! Seizure is maximum energy with *zero* informational Differentiation.
+- **Epileptic Flood:** $y_k \equiv 1 \implies A = 8$, yet $\sum_{k=0}^7 e^{i 2\pi k/8} = 0 \implies \mathbf{R = 0}$! Seizure is maximum energy with *zero* informational differentiation.
 - **Critical Trains of Thought:** Exactly one or two localized ideas fire in sequence ($A \approx 1$), so **$R(t) \in [0.12, 0.24] > 0$** while the phase angle $\Phi(t)$ steps around the cortical circle along $+1$ perimeter steps and $+3$ star chords! Because `idea_0..7` map onto motor gestures (`forward`, `turn left`, `turn right`, `stop`), the vehicle's physical trajectory $(x(t), y(t))$ in the dark arena is literally a **geometric calligraphy of its internal attractor cycle**!
 
 ```mermaid
