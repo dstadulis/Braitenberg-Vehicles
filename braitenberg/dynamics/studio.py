@@ -32,6 +32,7 @@ from braitenberg.dynamics.themes import (
     Theme,
     add_poster_header,
     aspect_figsize,
+    badge_bbox,
     basin_colors,
     field_cmap,
     ftle_cmap,
@@ -149,11 +150,11 @@ def _poster_axes_4(fig: Figure, aspect: str) -> list[mpl.axes.Axes]:
         gs = fig.add_gridspec(
             4,
             1,
-            left=0.13,
+            left=0.125,
             right=0.935,
-            bottom=0.048,
-            top=0.888,
-            hspace=0.37,
+            bottom=0.068,
+            top=0.892,
+            hspace=0.36,
         )
         return [fig.add_subplot(gs[i, 0]) for i in range(4)]
     if aspect == "1:1":
@@ -162,8 +163,8 @@ def _poster_axes_4(fig: Figure, aspect: str) -> list[mpl.axes.Axes]:
             2,
             left=0.088,
             right=0.955,
-            bottom=0.075,
-            top=0.855,
+            bottom=0.082,
+            top=0.858,
             wspace=0.28,
             hspace=0.35,
         )
@@ -181,10 +182,12 @@ def _poster_axes_4(fig: Figure, aspect: str) -> list[mpl.axes.Axes]:
     return [fig.add_subplot(gs[r, c]) for r in range(2) for c in range(2)]
 
 
-def _add_footer(fig: Figure, theme: Theme, text: str, aspect: str) -> None:
-    y = 0.014 if aspect == "9:16" else 0.020
-    x = 0.13 if aspect == "9:16" else (0.088 if aspect == "1:1" else 0.062)
-    fig.text(x, y, text, color=theme.fg_dim, fontsize=7.6, va="bottom", ha="left")
+def _add_footer(fig: Figure, theme: Theme, text: str, aspect: str, short_text: str | None = None) -> None:
+    y = 0.013 if aspect == "9:16" else 0.019
+    x = 0.065 if aspect == "9:16" else (0.088 if aspect == "1:1" else 0.062)
+    fs = 6.7 if aspect == "9:16" else (7.1 if aspect == "1:1" else 7.6)
+    msg = (short_text or text) if aspect != "16:9" else text
+    fig.text(x, y, msg, color=theme.fg_dim, fontsize=fs, va="bottom", ha="left")
 
 
 # ---------------------------------------------------------------------------
@@ -460,39 +463,39 @@ def _draw_polar_portrait(
     # Fixed points and limit cycles
     analysis = find_fixed_points_and_cycles(vdef, world, r_bounds=(2.0, r_max))
     lc = analysis.get("limit_cycle")
+    lc_col = theme.coral if not theme.is_dark else theme.gold
+    is_relative_eq = False
     if lc is not None and lc.get("r_orbit") is not None:
         r_orb = np.asarray(lc["r_orbit"], dtype=float)
         psi_orb = np.asarray(lc["psi_orbit"], dtype=float)
-        # Split across +-pi jumps if trajectory crosses cylinder seam
-        jumps = np.where(np.abs(np.diff(psi_orb)) > math.pi)[0] + 1
-        r_chunks = np.split(r_orb, jumps)
-        p_chunks = np.split(psi_orb, jumps)
-        for ci, (rc, pc) in enumerate(zip(r_chunks, p_chunks)):
-            if len(rc) >= 2:
-                plot_glow_line(
-                    ax,
-                    rc,
-                    pc,
-                    theme.coral if not theme.is_dark else theme.gold,
-                    theme,
-                    lw=2.5,
-                    label="Limit cycle" if ci == 0 else None,
-                    zorder=6.5,
+        r_span = float(np.nanmax(r_orb) - np.nanmin(r_orb)) if len(r_orb) > 0 else 0.0
+        r_lc = float(lc.get("r_mean", np.nanmean(r_orb) if len(r_orb) > 0 else 19.9))
+        if r_span <= 0.15:
+            # Circular arena limit cycle quotients on (r, psi) to symmetric spiral relative equilibria!
+            is_relative_eq = True
+            ax.axvline(r_lc, color=lc_col, lw=1.25, ls=":", alpha=0.72, zorder=3.8)
+            for sgn in (1.0, -1.0):
+                ax.scatter(
+                    [r_lc],
+                    [sgn * math.pi / 2],
+                    s=210,
+                    facecolors="none",
+                    edgecolors=lc_col,
+                    linewidths=1.4,
+                    alpha=0.78,
+                    zorder=7.2,
                 )
-        # Also mirror symmetric branch (-psi) if orbit stays on one side (CW vs CCW circling!)
-        if len(psi_orb) > 0 and (np.all(psi_orb > 0) or np.all(psi_orb < 0)):
-            for rc, pc in zip(r_chunks, p_chunks):
+        else:
+            jumps = np.where(np.abs(np.diff(psi_orb)) > math.pi)[0] + 1
+            r_chunks = np.split(r_orb, jumps)
+            p_chunks = np.split(psi_orb, jumps)
+            for ci, (rc, pc) in enumerate(zip(r_chunks, p_chunks)):
                 if len(rc) >= 2:
-                    plot_glow_line(
-                        ax,
-                        rc,
-                        -pc,
-                        theme.coral if not theme.is_dark else theme.gold,
-                        theme,
-                        lw=2.5,
-                        alpha=0.92,
-                        zorder=6.5,
-                    )
+                    plot_glow_line(ax, rc, pc, lc_col, theme, lw=2.5, zorder=6.5)
+            if len(psi_orb) > 0 and (np.all(psi_orb > 0) or np.all(psi_orb < 0)):
+                for rc, pc in zip(r_chunks, p_chunks):
+                    if len(rc) >= 2:
+                        plot_glow_line(ax, rc, -pc, lc_col, theme, lw=2.5, alpha=0.92, zorder=6.5)
 
     for fp in analysis.get("fixed_points", []):
         fp_r = float(fp.get("r", 0.0))
@@ -507,15 +510,32 @@ def _draw_polar_portrait(
             Line2D([0], [0], color=theme.violet, lw=1.4, ls="-.", label=r"$\dot{\psi}=0$ nullcline"),
         ]
         if lc is not None:
-            handles.append(
-                Line2D(
-                    [0],
-                    [0],
-                    color=theme.coral if not theme.is_dark else theme.gold,
-                    lw=2.3,
-                    label=f"Limit cycle ($r^*\\approx{float(lc.get('r_mean', 18.4)):.1f}$)",
+            r_lc_lbl = float(lc.get("r_mean", 19.9))
+            if is_relative_eq:
+                handles.append(
+                    Line2D(
+                        [0],
+                        [0],
+                        color=theme.emerald if theme.is_dark else theme.fg,
+                        marker="o",
+                        markersize=6.5,
+                        markeredgecolor=lc_col,
+                        markeredgewidth=1.4,
+                        linestyle=":",
+                        lw=1.2,
+                        label=f"Orbital sinks ($r^*\\approx{r_lc_lbl:.1f},\\,\\pm\\pi/2$)",
+                    )
                 )
-            )
+            else:
+                handles.append(
+                    Line2D(
+                        [0],
+                        [0],
+                        color=lc_col,
+                        lw=2.3,
+                        label=f"Limit cycle ($r^*\\approx{r_lc_lbl:.1f}$)",
+                    )
+                )
         leg = ax.legend(handles=handles, loc="upper right", framealpha=0.9)
         style_legend(leg, theme)
 
@@ -622,71 +642,90 @@ def build_act1_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             theme,
             tag="D",
             title="Vehicle 4a · Orbital Radius Bifurcation Sweep",
-            xlabel=r"Sensor peak preference $I_{\mathrm{peak}}$ (`response.at`)",
+            xlabel=r"Sensor peak preference $I_{\mathrm{peak}}$",
             ylabel=r"Asymptotic radius $r^*$ (arena units)",
         )
         sweep = bifurcation_sweep(
             _vehicle_def("vehicle4a-orbiter.yaml"),
             world_one,
             param="peak_at",
-            values=np.linspace(1.2, 9.2, 26),
+            values=np.linspace(1.2, 9.2, 30),
         )
         vals = np.asarray(sweep["values"], dtype=float)
         r_min = np.asarray(sweep["r_min"], dtype=float)
         r_max = np.asarray(sweep["r_max"], dtype=float)
         r_mean = np.asarray(sweep["r_mean"], dtype=float)
+        att_types = [str(t) for t in sweep.get("attractor_type", ["limit_cycle"] * len(vals))]
 
         # Theoretical analytical sensor inversion curve: I(r) = I0 / (1 + (r/falloff)^2) = peak_at
-        i_dense = np.linspace(1.2, 9.5, 200)
+        i_dense = np.linspace(1.2, 9.2, 200)
         r_theory = 15.0 * np.sqrt(np.maximum(10.0 / i_dense - 1.0, 0.0))
         ax_bif.plot(
             i_dense,
             r_theory,
             color=theme.fg_dim,
-            lw=1.1,
+            lw=1.2,
             ls="--",
-            alpha=0.75,
-            label=r"Iso-intensity $I(r)=I_{\mathrm{peak}}$",
+            alpha=0.82,
+            label=r"Analytical $I(r)=I_{\mathrm{peak}}$",
             zorder=3,
         )
 
-        valid = np.isfinite(r_mean)
-        if np.any(valid):
+        # Mask unbounded escape points so the orbital branch r* in [0, 50] fills the panel cleanly
+        bounded = np.isfinite(r_mean) & (r_mean < 65.0) & np.array(["escape" not in t.lower() for t in att_types])
+        if np.any(~bounded):
+            crit_i = float(vals[bounded][0]) if np.any(bounded) else 2.4
+            ax_bif.axvspan(float(vals.min()), crit_i, color=theme.coral, alpha=0.11, zorder=1)
+            ax_bif.axvline(crit_i, color=theme.coral, lw=1.1, ls="-.", alpha=0.8, zorder=3.5)
+            ax_bif.text(
+                0.5 * (float(vals.min()) + crit_i),
+                43.5,
+                "Escape\n($r\\to\\infty$)",
+                color=theme.coral,
+                fontsize=7.7,
+                fontweight="bold",
+                ha="center",
+                va="top",
+                path_effects=text_halo(theme),
+                zorder=8,
+            )
+
+        if np.any(bounded):
             ax_bif.fill_between(
-                vals[valid],
-                r_min[valid],
-                r_max[valid],
+                vals[bounded],
+                r_min[bounded],
+                r_max[bounded],
                 color=theme.cyan,
-                alpha=0.20,
+                alpha=0.22,
                 label=r"Orbital band $[r_{\min}, r_{\max}]$",
                 zorder=4,
             )
             plot_glow_line(
                 ax_bif,
-                vals[valid],
-                r_mean[valid],
+                vals[bounded],
+                r_mean[bounded],
                 theme.cyan,
                 theme,
-                lw=2.4,
-                label=r"Stable limit cycle $\langle r \rangle$",
+                lw=2.5,
+                label=r"Stable orbit radius $r^*$",
                 zorder=5,
             )
 
         # Canonical Vehicle 4a operating point at=4.0
-        r_canon = float(np.interp(4.0, vals[valid], r_mean[valid])) if np.any(valid) else 18.4
-        ax_bif.axvline(4.0, color=theme.amber, lw=1.1, ls=":", alpha=0.8, zorder=4)
+        r_canon = float(np.interp(4.0, vals[bounded], r_mean[bounded])) if np.any(bounded) else 19.9
+        ax_bif.axvline(4.0, color=theme.amber, lw=1.1, ls=":", alpha=0.82, zorder=4)
         plot_glow_scatter(
             ax_bif,
             [4.0],
             [r_canon],
             theme.gold if theme.is_dark else theme.coral,
             theme,
-            size=62,
+            size=64,
             label=f"Canonical 4a ($I_{{\\mathrm{{peak}}}}=4,\\; r^*\\approx{r_canon:.1f}$)",
             zorder=7,
         )
         ax_bif.set_xlim(float(vals.min()), float(vals.max()))
-        ax_bif.set_ylim(0.0, max(46.0, float(np.nanmax(r_max)) * 1.08 if np.any(valid) else 46.0))
+        ax_bif.set_ylim(0.0, 50.0)
         leg = ax_bif.legend(loc="upper right")
         style_legend(leg, theme)
 
@@ -695,6 +734,7 @@ def build_act1_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             theme,
             "Strogatz convention: filled disc = stable fixed point · open circle = unstable · crossed circle = saddle",
             aspect,
+            short_text="Filled disc = stable · open circle = unstable · crossed circle = saddle",
         )
         return fig
 
@@ -764,7 +804,7 @@ def build_act2_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             vmin=vmin,
             vmax=max(vmax, vmin + 1e-4),
             interpolation="bilinear",
-            aspect="auto" if aspect == "9:16" else "equal",
+            aspect="equal",
             zorder=2,
         )
         for sx, sy in sources:
@@ -804,23 +844,23 @@ def build_act2_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             origin="lower",
             extent=extent,
             interpolation="bilinear",
-            aspect="auto" if aspect == "9:16" else "equal",
+            aspect="equal",
             zorder=2,
         )
         for i, (sx, sy) in enumerate(sources):
             plot_lamp_beacon(ax_bas, sx, sy, theme, color=b_cols[i % len(b_cols)], size=72, zorder=8)
         entropy = float(lcs.get("basin_entropy", 0.0))
         ax_bas.text(
-            0.03,
-            0.95,
-            f"Basin entropy $S_b = {entropy:.2f}$ bits",
+            0.035,
+            0.955,
+            f"Basin entropy $S_b = {entropy:.2f}$",
             transform=ax_bas.transAxes,
             va="top",
             ha="left",
             color=theme.fg,
-            fontsize=8.2,
+            fontsize=8.0,
             fontweight="bold",
-            path_effects=text_halo(theme),
+            bbox=badge_bbox(theme),
             zorder=9,
         )
 
@@ -842,10 +882,12 @@ def build_act2_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             vmin=vmin,
             vmax=max(vmax, vmin + 1e-4),
             alpha=0.35 if theme.is_dark else 0.24,
-            aspect="auto" if aspect == "9:16" else "equal",
+            aspect="equal",
             zorder=1,
         )
-        swarm = simulate_swarm_ensemble(v4a, world_3, n_particles=90, steps=420, dt=0.05, seed=3)
+        swarm = simulate_swarm_ensemble(
+            v4a, world_3, n_particles=110, steps=420, dt=0.05, seed=3, init_mode="separatrix"
+        )
         sx_arr = np.asarray(swarm["x"], dtype=float)
         sy_arr = np.asarray(swarm["y"], dtype=float)
         bids = np.asarray(swarm["basin_id"], dtype=int)
@@ -916,21 +958,23 @@ def build_act2_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
 
 
 def _extract_neuro_episodes() -> dict[str, dict]:
-    """Retrieve canonical Act III trajectories via neuro.py, ensuring full multi-cycle spans."""
+    """Retrieve canonical Act III trajectories via neuro.py (cached across renders)."""
+    if "act3_episodes" in _SCENE_CACHE:
+        return _SCENE_CACHE["act3_episodes"]
     from braitenberg.dynamics.neuro import characterize_hysteresis_and_learning, record_episode
 
     summary = characterize_hysteresis_and_learning()
-    moth_ep = record_episode(_scenario("vehicle5-moth.yaml"), steps=3200)
-    forager_ep = record_episode(_scenario("vehicle5-forager.yaml"), steps=10500)
-    wary_ep = record_episode(_scenario("vehicle7-wary-moth.yaml"), steps=9500)
-    driver_ep = record_episode(_scenario("vehicle11-cautious-driver.yaml"), steps=10500)
-    return {
+    wary_ep = record_episode(_scenario("vehicle7-wary-moth.yaml"), steps=6500)
+    driver_ep = record_episode(_scenario("vehicle11-cautious-driver.yaml"), steps=6500)
+    res = {
         "summary": summary,
-        "moth": moth_ep,
-        "forager": forager_ep,
+        "moth": summary["moth"]["episode"],
+        "forager": summary["forager"]["episode"],
         "wary": wary_ep,
         "driver": driver_ep,
     }
+    _SCENE_CACHE["act3_episodes"] = res
+    return res
 
 
 def _nearest_lamp_distance(x: np.ndarray, y: np.ndarray, world: World) -> np.ndarray:
@@ -999,7 +1043,7 @@ def build_act3_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             theme.cyan,
             theme,
             lw=2.1,
-            label="Pre-burn attraction (`burned = 0`)",
+            label="Pre-burn attraction (burned = 0)",
             zorder=5,
         )
         plot_glow_line(
@@ -1009,7 +1053,7 @@ def build_act3_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             theme.coral,
             theme,
             lw=2.1,
-            label="Post-burn repulsion (`burned = 1`)",
+            label="Post-burn repulsion (burned = 1)",
             zorder=6,
         )
         plot_glow_scatter(
@@ -1057,10 +1101,10 @@ def build_act3_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             col = theme.amber if is_exploring else theme.emerald
             lbl = None
             if is_exploring and not drew_exp:
-                lbl = "Explore discharge (`full = 1`)"
+                lbl = "Explore discharge (full = 1)"
                 drew_exp = True
             elif not is_exploring and not drew_seek:
-                lbl = "Phototaxis & recharge (`seeking`)"
+                lbl = "Phototaxis & recharge (seeking)"
                 drew_seek = True
             plot_glow_line(ax_for, r_for[s_i:seg_end], e_for[s_i:seg_end], col, theme, lw=2.0, label=lbl, zorder=5)
 
@@ -1102,7 +1146,7 @@ def build_act3_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             theme.coral,
             theme,
             lw=2.3,
-            label="`sees_red -> danger` (hot lamp)",
+            label="sees_red → danger (hot lamp)",
             zorder=6,
         )
         plot_glow_line(
@@ -1112,7 +1156,7 @@ def build_act3_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             theme.cyan,
             theme,
             lw=1.8,
-            label="`sees_white -> danger` (safe lamp)",
+            label="sees_white → danger (safe lamp)",
             zorder=5,
         )
         cross_idx = np.where(w_red > ACTIVE_STRENGTH)[0]
@@ -1130,12 +1174,12 @@ def build_act3_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             ax_wary.annotate(
                 r"Bifurcation: flees red at $r\approx 26$",
                 xy=(t_wary[ci], w_red[ci]),
-                xytext=(min(t_wary[-1] * 0.42, t_wary[ci] + 6.0), 0.86),
+                xytext=(min(t_wary[-1] * 0.45, t_wary[ci] + 5.5), 0.43),
                 color=theme.fg,
-                fontsize=8.0,
+                fontsize=7.9,
                 fontweight="bold",
-                arrowprops={"arrowstyle": "->", "color": theme.fg_muted, "lw": 1.0},
-                path_effects=text_halo(theme),
+                bbox=badge_bbox(theme),
+                arrowprops={"arrowstyle": "->", "color": theme.fg_muted, "lw": 1.1},
                 zorder=9,
             )
         ax_wary.set_xlim(float(t_wary[0]), float(t_wary[-1]))
@@ -1176,7 +1220,7 @@ def build_act3_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
                 theme.amber,
                 theme,
                 lw=2.3,
-                label="`sees_yellow -> expects_red`",
+                label="sees_yellow → expects_red",
                 zorder=6,
             )
         if k_gy:
@@ -1189,7 +1233,7 @@ def build_act3_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
                 lw=1.8,
                 ls="-",
                 alpha=0.82,
-                label="`sees_green -> expects_yellow`",
+                label="sees_green → expects_yellow",
                 zorder=5,
             )
         if k_gr:
@@ -1202,7 +1246,7 @@ def build_act3_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
                 lw=1.5,
                 ls=":",
                 alpha=0.80,
-                label="`sees_green -> expects_red`",
+                label="sees_green → expects_red",
                 zorder=4.5,
             )
         ax_drv.set_xlim(float(t_drv[0]), float(t_drv[-1]))
@@ -1265,7 +1309,7 @@ def build_act4_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             tag="A",
             title="Homeostatic Criticality Across Caudate Target",
             xlabel=r"Caudate target activity $\tau_{\mathrm{target}}$",
-            ylabel=r"Mean active ideas $\langle A \rangle$ & wave coherence",
+            ylabel=r"Activity $\langle A \rangle$ & Entropy $H$",
         )
         # Extract target sweep from crit if 1D/2D, or evaluate crisp target curve across [0.0 .. 7.5]
         v12_base = _vehicle_def("vehicle12-daydreamer.yaml")
@@ -1323,7 +1367,7 @@ def build_act4_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             xlabel=r"$\mathrm{Re}\,Z(t)$",
             ylabel=r"$\mathrm{Im}\,Z(t)$",
         )
-        ax_z.set_aspect("equal", adjustable="datalim")
+        ax_z.set_aspect("equal", adjustable="box")
         ideas_d, z_d, r_d, phi_d = _compute_ring_order_param(ep_dream["units"])
 
         # Draw outer cortical ring & k -> (k+1, k+3) star chords
@@ -1358,8 +1402,8 @@ def build_act4_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             lx, ly = (ring_rad + 0.085) * math.cos(node_angles[k]), (ring_rad + 0.085) * math.sin(node_angles[k])
             ax_z.text(lx, ly, f"$I_{k}$", color=theme.fg_muted, fontsize=7.6, ha="center", va="center", path_effects=text_halo(theme), zorder=9)
 
-        ax_z.set_xlim(-0.56, 0.56)
-        ax_z.set_ylim(-0.54, 0.54)
+        ax_z.set_xlim(-0.58, 1.08)
+        ax_z.set_ylim(-0.58, 0.58)
         leg_b = ax_z.legend(loc="lower right")
         style_legend(leg_b, theme)
 
@@ -1371,7 +1415,7 @@ def build_act4_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             tag="C",
             title="Idea Cascade & Caudate Threshold Breathing",
             xlabel=r"Simulated time $t$ (s)",
-            ylabel="Active `idea_k` & $\\theta_{\\mathrm{eff}}(t)$",
+            ylabel=r"Active idea $k$ & $\theta_{\mathrm{eff}}(t)$",
         )
         t_d = np.asarray(ep_dream["t"], dtype=float)
         sl = slice(0, min(len(t_d), 900))  # first 45s crisp detail
@@ -1412,7 +1456,7 @@ def build_act4_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             xlabel=r"Unwrapped $x$ (arena units)",
             ylabel=r"Unwrapped $y$ (arena units)",
         )
-        ax_trk.set_aspect("equal", adjustable="datalim")
+        ax_trk.set_aspect("equal", adjustable="box")
         seed_specs = [
             (0, theme.cyan, "Seed 0 (periodic loop)"),
             (1, theme.coral, "Seed 1 (stuttering aperiodic)"),
@@ -1433,6 +1477,8 @@ def build_act4_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             plot_glow_line(ax_trk, ux + shift, uy, col, theme, lw=1.85, alpha=0.90, label=lbl, zorder=5 + sd * 0.2)
             plot_glow_scatter(ax_trk, [ux[-1] + shift], [uy[-1]], col, theme, size=32, zorder=7)
 
+        ax_trk.set_xlim(-56.0, 44.0)
+        ax_trk.set_ylim(-8.0, 48.0)
         leg_d = ax_trk.legend(loc="upper right")
         style_legend(leg_d, theme)
 
@@ -1441,6 +1487,7 @@ def build_act4_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: int
             theme,
             "Zero external stimulus & zero stochastic noise: deterministic jitter order alone sculptures macroscopic trajectories",
             aspect,
+            short_text="Zero external stimulus & zero noise: deterministic jitter sculptures thought geometry",
         )
         return fig
 
@@ -1502,7 +1549,7 @@ def build_atlas_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: in
             ax_ii,
             theme,
             tag="II",
-            title=r"Three-Lamp FTLE Ridges $\sigma_T$ & Swarm Splitting",
+            title=r"Three-Lamp FTLE Ridges $\sigma_T$ & Splitting",
             xlabel=r"Arena $x$",
             ylabel=r"Arena $y$",
             grid=False,
@@ -1515,10 +1562,12 @@ def build_atlas_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: in
             vmin=vmin,
             vmax=max(vmax, vmin + 1e-4),
             interpolation="bilinear",
-            aspect="auto" if aspect == "9:16" else "equal",
+            aspect="equal",
             zorder=2,
         )
-        swarm = simulate_swarm_ensemble(v4a, world_3, n_particles=75, steps=360, dt=0.05, seed=2)
+        swarm = simulate_swarm_ensemble(
+            v4a, world_3, n_particles=85, steps=380, dt=0.05, seed=2, init_mode="separatrix"
+        )
         b_cols = basin_colors(theme, max(3, len(sources)))
         p_cols = [b_cols[int(b) % len(b_cols)] if int(b) >= 0 else theme.violet for b in swarm["basin_id"]]
         plot_comet_trails(
@@ -1528,9 +1577,9 @@ def build_atlas_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: in
             p_cols,
             theme,
             max_lw=1.35,
-            alpha=0.76,
+            alpha=0.72,
             arena_size=(world_3.arena.width, world_3.arena.height),
-            head_size=13.0,
+            head_size=12.0,
             zorder=5,
         )
         for sx, sy in sources:
@@ -1544,12 +1593,13 @@ def build_atlas_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: in
             ax_iii,
             theme,
             tag="III",
-            title=r"Slow–Fast $(r, E)$ Relaxation & $w_c=0.7$ Plasticity",
+            title=r"Slow–Fast $(r, E)$ Cycle & $w_c=0.7$ Plasticity",
             xlabel=r"Distance to lamp $r$",
-            ylabel=r"Internal energy $E(t)$  /  $100 \cdot w_{\mathrm{red}}(t)$",
+            ylabel=r"Energy $E(t)$ / $100\,w_{\mathrm{red}}(t)$",
         )
-        forager = record_episode(_scenario("vehicle5-forager.yaml"), steps=9800)
-        wary = record_episode(_scenario("vehicle7-wary-moth.yaml"), steps=8500)
+        neuro_eps = _extract_neuro_episodes()
+        forager = neuro_eps["forager"]
+        wary = neuro_eps["wary"]
         r_for = np.asarray(forager["r_primary"], dtype=float)
         e_for = np.asarray(forager["energy"], dtype=float)
         plot_glow_line(
@@ -1583,7 +1633,7 @@ def build_atlas_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: in
                 zorder=6,
             )
             ax_iii.axhline(70.0, color=theme.gold if theme.is_dark else theme.coral, lw=1.2, ls=":", label=r"Synaptic gate $w_c = 0.7$")
-        ax_iii.set_xlim(0.0, 52.0)
+        ax_iii.set_xlim(0.0, 62.0)
         ax_iii.set_ylim(0.0, 105.0)
         leg_iii = ax_iii.legend(loc="lower right")
         style_legend(leg_iii, theme)
@@ -1594,11 +1644,11 @@ def build_atlas_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: in
             ax_iv,
             theme,
             tag="IV",
-            title=r"Homeostatic Criticality · Ring $Z(t)$ & Thought Geometry",
+            title=r"Critical Ring $Z(t)$ & Thought Geometry",
             xlabel=r"Normalized phase / arena coordinate",
             ylabel=r"Normalized coordinate",
         )
-        ax_iv.set_aspect("equal", adjustable="datalim")
+        ax_iv.set_aspect("equal", adjustable="box")
         ep_dream = record_episode(_scenario("vehicle12-daydreamer.yaml"), steps=1600)
         ideas_d, z_d, _, _ = _compute_ring_order_param(ep_dream["units"])
         ux = np.asarray(ep_dream["ux"], dtype=float)
@@ -1639,6 +1689,7 @@ def build_atlas_poster(theme_name: str = "cosmic", aspect: str = "16:9", dpi: in
             theme,
             "braitenberg.dynamics · From reactive taxis (Vehicles 1–4) to memory latches, Hebbian gates & homeostatic thought (Vehicles 5–12)",
             aspect,
+            short_text="braitenberg.dynamics · Reactive taxis (V1–4) to memory, plasticity & thought (V5–12)",
         )
         return fig
 
@@ -1744,11 +1795,15 @@ def _precompute_orbiter_scene() -> dict:
     rng = np.random.default_rng(42)
     n_inner, n_outer = 65, 85
     n_total = n_inner + n_outer
-    r0_in = rng.uniform(3.2, 12.2, size=n_inner)
-    r0_out = rng.uniform(26.5, 45.5, size=n_outer)
+    r0_in = rng.uniform(6.0, 14.0, size=n_inner)
+    r0_out = rng.uniform(26.0, 42.5, size=n_outer)
     r0 = np.concatenate([r0_in, r0_out])
     ang0 = rng.uniform(0.0, 2.0 * math.pi, size=n_total)
-    psi_init = rng.uniform(-math.pi * 0.92, math.pi * 0.92, size=n_total)
+    # Balanced CW / CCW initial bearings avoiding radial escape singular ray psi = +-pi
+    signs = rng.choice([-1.0, 1.0], size=n_total)
+    psi_in = signs[:n_inner] * rng.uniform(0.35, 1.55, size=n_inner)
+    psi_out = signs[n_inner:] * rng.uniform(0.20, 1.45, size=n_outer)
+    psi_init = np.concatenate([psi_in, psi_out])
 
     placements = []
     for i in range(n_total):
@@ -1759,7 +1814,7 @@ def _precompute_orbiter_scene() -> dict:
         placements.append(Placement(v4a, (x0, y0), hdg, f"p{i}"))
 
     dt = 0.04
-    steps = 480
+    steps = 580
     sim = Simulation(Scenario("orbiter_swarm", world, placements, SimulationSettings(dt=dt, seed=0)))
     xs = np.empty((steps, n_total), dtype=float)
     ys = np.empty((steps, n_total), dtype=float)
@@ -1807,11 +1862,11 @@ def _setup_orbiter_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int) -
     add_poster_header(
         fig,
         theme,
-        "Vehicle 4a Orbiter · Supercritical Limit-Cycle Collapse",
+        "Vehicle 4a · Limit-Cycle Collapse" if compact else "Vehicle 4a Orbiter · Supercritical Limit-Cycle Collapse",
         (
-            r"150 vehicles launched inside & outside $r^* \approx 18.4$ spiral onto the invariant closed orbit"
+            r"150 vehicles launched inside & outside $r^* \approx 19.9$ spiral onto the invariant closed orbit"
             if not compact
-            else r"150 Orbiters collapsing onto the $(r,\psi)$ limit cycle"
+            else r"150 Orbiters collapsing onto the $(r,\psi)$ invariant orbit"
         ),
         kicker="SYNCHRONIZED ARENA & CYLINDRICAL PHASE PORTRAIT",
         compact=compact,
@@ -1841,19 +1896,29 @@ def _setup_orbiter_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int) -
     ax_phase.contour(r_grid, psi_grid, dpsi_clean, levels=[0.0], colors=[theme.violet], linewidths=1.3, linestyles="-.", alpha=0.85, zorder=3)
     if lc and lc.get("r_orbit") is not None:
         ro, po = np.asarray(lc["r_orbit"]), np.asarray(lc["psi_orbit"])
-        jumps = np.where(np.abs(np.diff(po)) > math.pi)[0] + 1
-        for rc, pc in zip(np.split(ro, jumps), np.split(po, jumps)):
-            if len(rc) >= 2:
-                plot_glow_line(ax_phase, rc, pc, theme.gold if theme.is_dark else theme.coral, theme, lw=2.2, alpha=0.85, zorder=4)
-                if np.all(po > 0) or np.all(po < 0):
-                    plot_glow_line(ax_phase, rc, -pc, theme.gold if theme.is_dark else theme.coral, theme, lw=2.2, alpha=0.85, zorder=4)
+        lc_col = theme.gold if theme.is_dark else theme.coral
+        if len(ro) > 0 and float(np.nanmax(ro) - np.nanmin(ro)) <= 0.15:
+            ax_phase.axvline(r_star, color=lc_col, lw=1.25, ls=":", alpha=0.72, zorder=3.6)
+            for sgn in (1.0, -1.0):
+                plot_strogatz_equilibrium(ax_phase, r_star, sgn * math.pi / 2, "stable_spiral", theme, size=62, zorder=7.5)
+                ax_phase.scatter([r_star], [sgn * math.pi / 2], s=220, facecolors="none", edgecolors=lc_col, linewidths=1.4, alpha=0.78, zorder=7.2)
+        else:
+            jumps = np.where(np.abs(np.diff(po)) > math.pi)[0] + 1
+            for rc, pc in zip(np.split(ro, jumps), np.split(po, jumps)):
+                if len(rc) >= 2:
+                    plot_glow_line(ax_phase, rc, pc, lc_col, theme, lw=2.2, alpha=0.85, zorder=4)
+                    if np.all(po > 0) or np.all(po < 0):
+                        plot_glow_line(ax_phase, rc, -pc, lc_col, theme, lw=2.2, alpha=0.85, zorder=4)
     ax_phase.set_xlim(float(r_grid[0]), float(r_grid[-1]))
     _format_psi_axis(ax_phase)
 
     base_rgba = np.array([to_rgba(theme.coral if inn else theme.cyan) for inn in is_inner], dtype=float)
     comet_arena = CometArtist(ax_arena, theme, max_lw=1.9, head_size=18.0, arena_size=(100.0, 100.0), zorder=6)
     comet_phase = CometArtist(ax_phase, theme, max_lw=1.7, head_size=16.0, psi_wrap=True, zorder=6)
-    badge = ax_arena.text(0.03, 0.96, "", transform=ax_arena.transAxes, va="top", ha="left", color=theme.fg, fontsize=8.4, fontweight="bold", path_effects=text_halo(theme), zorder=10)
+    badge = ax_arena.text(
+        0.035, 0.96, "", transform=ax_arena.transAxes, va="top", ha="left",
+        color=theme.fg, fontsize=8.1, fontweight="bold", bbox=badge_bbox(theme), zorder=10,
+    )
 
     total_steps = xs.shape[0]
     tail = 26
@@ -1878,7 +1943,19 @@ def _precompute_ftle_scene() -> dict:
     world = _three_lamp_world()
     v4a = _vehicle_def("vehicle4a-orbiter.yaml")
     lcs = compute_ftle_and_basins(v4a, world, nx=115, ny=115, horizon=11.5, dt=0.05)
-    swarm = simulate_swarm_ensemble(v4a, world, n_particles=300, steps=480, dt=0.04, seed=7, noise_scale=0.0)
+    swarm_sep = simulate_swarm_ensemble(
+        v4a, world, n_particles=180, steps=480, dt=0.04, seed=7, init_mode="separatrix", noise_scale=0.0
+    )
+    swarm_ring = simulate_swarm_ensemble(
+        v4a, world, n_particles=120, steps=480, dt=0.04, seed=11, init_mode="circle", noise_scale=0.0
+    )
+    swarm = {
+        "t": swarm_sep["t"],
+        "x": np.concatenate([swarm_sep["x"], swarm_ring["x"]], axis=1),
+        "y": np.concatenate([swarm_sep["y"], swarm_ring["y"]], axis=1),
+        "heading": np.concatenate([swarm_sep["heading"], swarm_ring["heading"]], axis=1),
+        "basin_id": np.concatenate([swarm_sep["basin_id"], swarm_ring["basin_id"]], axis=0),
+    }
     res = {"world": world, "lcs": lcs, "swarm": swarm, "dt": 0.04}
     _SCENE_CACHE["ftle_swarm"] = res
     return res
@@ -1895,7 +1972,7 @@ def _setup_ftle_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int) -> C
     add_poster_header(
         fig,
         theme,
-        "Lagrangian Chaos · 300-Vehicle Swarm Shearing Along FTLE Ridges",
+        "Lagrangian Chaos · 300-Vehicle FTLE Swarm" if compact else "Lagrangian Chaos · 300-Vehicle Swarm Shearing Along FTLE Ridges",
         (
             r"Bioluminescent ensemble splits across repelling Finite-Time Lyapunov ($\sigma_T$) separatrices into 3 lamp attractors"
             if not compact
@@ -1957,7 +2034,10 @@ def _setup_ftle_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int) -> C
 
     comet_arena = CometArtist(ax_arena, theme, max_lw=1.7, head_size=15.0, arena_size=(world.arena.width, world.arena.height), zorder=6)
     comet_phase = CometArtist(ax_right, theme, max_lw=1.4, head_size=14.0, psi_wrap=True, zorder=6)
-    badge = ax_arena.text(0.03, 0.96, "", transform=ax_arena.transAxes, va="top", ha="left", color=theme.fg, fontsize=8.4, fontweight="bold", path_effects=text_halo(theme), zorder=10)
+    badge = ax_arena.text(
+        0.035, 0.96, "", transform=ax_arena.transAxes, va="top", ha="left",
+        color=theme.fg, fontsize=8.1, fontweight="bold", bbox=badge_bbox(theme), zorder=10,
+    )
 
     total_steps = xs.shape[0]
     tail = 24
@@ -1977,11 +2057,8 @@ def _precompute_plasticity_scene() -> dict:
     if "plasticity" in _SCENE_CACHE:
         return _SCENE_CACHE["plasticity"]
 
-    from braitenberg.dynamics.neuro import record_episode
-
-    forager = record_episode(_scenario("vehicle5-forager.yaml"), steps=9600)
-    wary = record_episode(_scenario("vehicle7-wary-moth.yaml"), steps=9600)
-    res = {"forager": forager, "wary": wary}
+    eps = _extract_neuro_episodes()
+    res = {"forager": eps["forager"], "wary": eps["wary"]}
     _SCENE_CACHE["plasticity"] = res
     return res
 
@@ -1995,7 +2072,7 @@ def _setup_plasticity_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int
     add_poster_header(
         fig,
         theme,
-        "Memory & Synaptic Bifurcation · Forager Cycle & Wary Moth Learning",
+        "Memory & Synaptic Bifurcation ($w_c = 0.7$)" if compact else "Memory & Synaptic Bifurcation · Forager Cycle & Wary Moth Learning",
         (
             r"Left: Forager slow–fast $(r,E)$ relaxation oscillation · Right: Wary Moth crossing $w_c = 0.7$ into avoidance"
             if not compact
@@ -2011,8 +2088,8 @@ def _setup_plasticity_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int
     e_for = np.asarray(forager["energy"], dtype=float)
     style_axes(ax_for, theme, tag="A", title="Vehicle 5 Forager · Slow–Fast $(r, E)$ Cycle", xlabel=r"Distance to lamp $r$", ylabel=r"Internal energy $E(t)$")
     ax_for.plot(r_for, e_for, color=theme.fg_dim, lw=0.9, alpha=0.28, zorder=2)
-    ax_for.axhline(90.0, color=theme.emerald, lw=1.1, ls="--", alpha=0.75, label=r"$E_{\mathrm{high}}=90$ (`full`)")
-    ax_for.axhline(30.0, color=theme.amber, lw=1.1, ls="--", alpha=0.75, label=r"$E_{\mathrm{low}}=30$ (`hungry`)")
+    ax_for.axhline(90.0, color=theme.emerald, lw=1.1, ls="--", alpha=0.75, label=r"$E_{\mathrm{high}}=90$ (full)")
+    ax_for.axhline(30.0, color=theme.amber, lw=1.1, ls="--", alpha=0.75, label=r"$E_{\mathrm{low}}=30$ (hungry)")
     ax_for.set_xlim(0.0, max(46.0, float(np.nanmax(r_for)) * 1.05))
     ax_for.set_ylim(0.0, 106.0)
     leg_a = ax_for.legend(loc="lower left")
@@ -2034,34 +2111,39 @@ def _setup_plasticity_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int
     ax_wary.set_ylim(-0.03, 1.05)
 
     line_red_halo = ax_wary.plot([], [], color=theme.coral, lw=6.5, alpha=0.16, zorder=4.8)[0] if theme.glow_enabled else None
-    line_red = ax_wary.plot([], [], color=theme.coral, lw=2.4, label="`sees_red -> danger`", zorder=5)[0]
-    line_wht = ax_wary.plot([], [], color=theme.cyan, lw=1.8, label="`sees_white -> danger`", zorder=4.5)[0]
+    line_red = ax_wary.plot([], [], color=theme.coral, lw=2.4, label="sees_red → danger", zorder=5)[0]
+    line_wht = ax_wary.plot([], [], color=theme.cyan, lw=1.8, label="sees_white → danger", zorder=4.5)[0]
     dot_red = ax_wary.scatter([], [], s=62, c=[theme.gold if theme.is_dark else theme.coral], edgecolors="#ffffff" if theme.is_dark else theme.fg, zorder=7)
     leg_b = ax_wary.legend(loc="lower right")
     style_legend(leg_b, theme)
 
     comet_for = CometArtist(ax_for, theme, max_lw=2.8, head_size=52.0, zorder=6)
-    status_txt = ax_wary.text(0.03, 0.95, "", transform=ax_wary.transAxes, va="top", ha="left", color=theme.fg, fontsize=8.4, fontweight="bold", path_effects=text_halo(theme), zorder=9)
+    status_txt = ax_wary.text(
+        0.035, 0.955, "", transform=ax_wary.transAxes, va="top", ha="left",
+        color=theme.fg, fontsize=8.0, fontweight="bold", bbox=badge_bbox(theme), zorder=9,
+    )
 
-    n_steps = min(len(r_for), len(t_w))
-    tail = 420
+    n_for = len(r_for)
+    n_wary = len(t_w)
+    tail_for = 160
     full_u = np.asarray(forager["units"].get("full", np.zeros_like(r_for)), dtype=float)
 
     def update(f_idx: int) -> None:
-        step = min(n_steps - 1, int(round(f_idx * (n_steps - 1) / max(1, n_frames - 1))))
-        s0 = max(0, step - tail)
-        # Subsample tail by 4 for crisp smooth comet without 400-segment density
-        col_for = np.array([to_rgba(theme.amber if full_u[step] > 0.5 else theme.emerald)], dtype=float)
-        comet_for.update(r_for[s0 : step + 1 : 4], e_for[s0 : step + 1 : 4], col_for)
+        frac = f_idx / max(1, n_frames - 1)
+        step_f = min(n_for - 1, int(round(frac * (n_for - 1))))
+        step_w = min(n_wary - 1, int(round(frac * (n_wary - 1))))
+        s0 = max(0, step_f - tail_for)
+        col_for = np.array([to_rgba(theme.amber if full_u[step_f] > 0.5 else theme.emerald)], dtype=float)
+        comet_for.update(r_for[s0 : step_f + 1 : 2], e_for[s0 : step_f + 1 : 2], col_for)
 
-        sub = slice(0, step + 1, 6)
+        sub = slice(0, step_w + 1, 6)
         line_red.set_data(t_w[sub], w_red[sub])
         if line_red_halo is not None:
             line_red_halo.set_data(t_w[sub], w_red[sub])
         line_wht.set_data(t_w[sub], w_wht[sub])
-        dot_red.set_offsets(np.array([[t_w[step], w_red[step]]]))
-        regime = "AVOIDING RED (w > 0.7)" if w_red[step] > ACTIVE_STRENGTH else "NAIVE ATTRACTION (w <= 0.7)"
-        status_txt.set_text(f"t = {t_w[step]:.1f} s   {regime}")
+        dot_red.set_offsets(np.array([[t_w[step_w], w_red[step_w]]]))
+        regime = "AVOIDING RED (w > 0.7)" if w_red[step_w] > ACTIVE_STRENGTH else "NAIVE ATTRACTION (w ≤ 0.7)"
+        status_txt.set_text(f"t = {t_w[step_w]:.1f} s   {regime}")
 
     return update
 
@@ -2090,7 +2172,7 @@ def _setup_daydreamer_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int
     add_poster_header(
         fig,
         theme,
-        "Vehicle 12 Daydreamer · Endogenous Cortical Mandala & Thought Geometry",
+        "Vehicle 12 Daydreamer · Cortical Mandala" if compact else "Vehicle 12 Daydreamer · Endogenous Cortical Mandala & Thought Geometry",
         (
             r"8-idea cortical ring pulsing in the dark under caudate threshold control, drawing deterministic symmetries"
             if not compact
@@ -2113,10 +2195,10 @@ def _setup_daydreamer_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int
 
     # Panel A: Physical Dark Arena Thought Geometry
     style_axes(ax_trk, theme, tag="A", title="Physical Dark Arena · Geometric Thought Track", xlabel=r"Unwrapped $x$", ylabel=r"Unwrapped $y$")
-    ax_trk.set_aspect("equal", adjustable="datalim")
-    pad = 5.0
+    ax_trk.set_aspect("equal", adjustable="box")
+    pad = 4.0
     cx, cy = 0.5 * (ux.min() + ux.max()), 0.5 * (uy.min() + uy.max())
-    half_span = 0.5 * max(np.ptp(ux), np.ptp(uy), 20.0) + pad
+    half_span = 0.5 * max(np.ptp(ux), np.ptp(uy), 18.0) + pad
     ax_trk.set_xlim(cx - half_span, cx + half_span)
     ax_trk.set_ylim(cy - half_span, cy + half_span)
     ax_trk.plot(ux, uy, color=theme.fg_dim, lw=0.75, ls=":", alpha=0.25, zorder=2)
@@ -2127,8 +2209,8 @@ def _setup_daydreamer_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int
 
     # Panel B: 8-Neuron Circular Mandala + Complex Order Parameter Z(t)
     style_axes(ax_ring, theme, tag="B", title=r"8-Idea Cortical Mandala & Order Parameter $Z(t)$", xlabel=r"$\mathrm{Re}\,Z(t)$", ylabel=r"$\mathrm{Im}\,Z(t)$", grid=False)
-    ax_ring.set_aspect("equal", adjustable="datalim")
-    ring_rad = 0.44
+    ax_ring.set_aspect("equal", adjustable="box")
+    ring_rad = 0.42
     ang = 2.0 * math.pi * np.arange(8) / 8.0
     nx_r, ny_r = ring_rad * np.cos(ang), ring_rad * np.sin(ang)
     for k in range(8):
@@ -2137,20 +2219,23 @@ def _setup_daydreamer_anim(fig: Figure, theme: Theme, aspect: str, n_frames: int
             ax_ring.plot([nx_r[k], nx_r[j]], [ny_r[k], ny_r[j]], color=theme.spine, lw=1.0, alpha=0.60, zorder=2)
     gestures = ["FWD", "LEFT", "RIGHT", "STOP", "FWD", "LEFT", "RIGHT", "STOP"]
     for k in range(8):
-        lx, ly = (ring_rad + 0.115) * math.cos(ang[k]), (ring_rad + 0.115) * math.sin(ang[k])
-        ax_ring.text(lx, ly, f"I{k}·{gestures[k]}", color=theme.fg_muted, fontsize=7.4, fontweight="bold", ha="center", va="center", path_effects=text_halo(theme), zorder=9)
+        lx, ly = (ring_rad + 0.12) * math.cos(ang[k]), (ring_rad + 0.12) * math.sin(ang[k])
+        ax_ring.text(lx, ly, f"I{k}·{gestures[k]}", color=theme.fg_muted, fontsize=7.3, fontweight="bold", ha="center", va="center", path_effects=text_halo(theme), zorder=9)
 
     th_circle = np.linspace(0, 2 * math.pi, 180)
     ax_ring.plot(ring_rad * np.cos(th_circle), ring_rad * np.sin(th_circle), color=theme.fg_dim, lw=0.8, ls=":", alpha=0.45, zorder=2)
     ax_ring.scatter([0.0], [0.0], s=95, marker="D", c=[theme.violet], edgecolors="#ffffff" if theme.is_dark else theme.fg, zorder=8)
-    ax_ring.set_xlim(-0.66, 0.66)
-    ax_ring.set_ylim(-0.62, 0.62)
+    ax_ring.set_xlim(-0.73, 0.73)
+    ax_ring.set_ylim(-0.66, 0.80)
 
     node_halo = ax_ring.scatter(nx_r, ny_r, s=np.full(8, 220.0), c=[theme.panel_bg] * 8, alpha=0.30, edgecolors="none", zorder=6.5) if theme.glow_enabled else None
     node_core = ax_ring.scatter(nx_r, ny_r, s=np.full(8, 120.0), c=[theme.panel_bg] * 8, edgecolors=theme.fg_muted, linewidths=1.3, zorder=7)
     z_vec_line = ax_ring.plot([0.0, 0.0], [0.0, 0.0], color=theme.gold if theme.is_dark else theme.coral, lw=2.5, zorder=8.5)[0]
     comet_z = CometArtist(ax_ring, theme, max_lw=2.2, head_size=36.0, zorder=7.5)
-    caudate_badge = ax_ring.text(0.03, 0.96, "", transform=ax_ring.transAxes, va="top", ha="left", color=theme.fg, fontsize=8.3, fontweight="bold", path_effects=text_halo(theme), zorder=10)
+    caudate_badge = ax_ring.text(
+        0.03, 0.965, "", transform=ax_ring.transAxes, va="top", ha="left",
+        color=theme.fg, fontsize=7.8, fontweight="bold", bbox=badge_bbox(theme), zorder=10,
+    )
 
     cmap_p = phase_cmap(theme)
     node_on_rgba = np.array([cmap_p(k / 8.0) for k in range(8)], dtype=float)

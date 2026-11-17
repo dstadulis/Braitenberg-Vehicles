@@ -266,6 +266,17 @@ def text_halo(theme: Theme, width: float = 2.8) -> list[pe.AbstractPathEffect]:
     return [pe.withStroke(linewidth=width, foreground=theme.ax_bg, alpha=0.92)]
 
 
+def badge_bbox(theme: Theme, alpha: float = 0.88) -> dict[str, object]:
+    """Translucent pill container for in-axes telemetry & callout annotations."""
+    return {
+        "boxstyle": "round,pad=0.32",
+        "facecolor": theme.panel_bg,
+        "edgecolor": theme.spine,
+        "linewidth": 0.8,
+        "alpha": alpha if theme.is_dark else 0.93,
+    }
+
+
 def style_axes(
     ax: mpl.axes.Axes,
     theme: Theme,
@@ -278,6 +289,9 @@ def style_axes(
     top_right_spines: bool = False,
 ) -> None:
     """Apply consistent Strogatz/Cosmic styling, hairlines, and title hierarchy to ``ax``."""
+    fig_w = ax.figure.get_figwidth() if ax.figure is not None else 12.8
+    scale = min(1.0, max(0.76, fig_w / 11.6))
+
     ax.set_facecolor(theme.ax_bg)
     for side, spine in ax.spines.items():
         if not top_right_spines and side in ("top", "right"):
@@ -287,16 +301,16 @@ def style_axes(
             spine.set_color(theme.spine)
             spine.set_linewidth(0.9 if theme.is_dark else 1.1)
 
-    ax.tick_params(colors=theme.fg_dim, labelsize=8.3, length=3.2, pad=3)
+    ax.tick_params(colors=theme.fg_dim, labelsize=8.3 * scale, length=3.2, pad=3)
     if grid:
         ax.grid(True, color=theme.grid, alpha=theme.grid_alpha, linewidth=0.6, linestyle="-", zorder=0)
     else:
         ax.grid(False)
 
     if xlabel is not None:
-        ax.set_xlabel(xlabel, color=theme.fg_muted, fontsize=9.2, labelpad=4)
+        ax.set_xlabel(xlabel, color=theme.fg_muted, fontsize=9.1 * scale, labelpad=3.5)
     if ylabel is not None:
-        ax.set_ylabel(ylabel, color=theme.fg_muted, fontsize=9.2, labelpad=4)
+        ax.set_ylabel(ylabel, color=theme.fg_muted, fontsize=9.1 * scale, labelpad=3.5)
 
     if title is not None or tag is not None:
         header = f"{tag}  {title}" if (tag and title) else (title or tag or "")
@@ -304,9 +318,9 @@ def style_axes(
             header,
             loc="left",
             color=theme.fg,
-            fontsize=10.2,
+            fontsize=10.1 * scale,
             fontweight="bold",
-            pad=8,
+            pad=7.5,
         )
 
 
@@ -317,16 +331,24 @@ def add_poster_header(
     subtitle: str,
     *,
     kicker: str = "SYNTHETIC PSYCHOLOGY × NONLINEAR DYNAMICS",
-    y_top: float = 0.972,
+    y_top: float = 0.974,
     compact: bool = False,
 ) -> None:
-    """Render an editorial poster masthead with clean vertical rhythm and accent rule."""
-    title_fs = 14.5 if compact else 17.5
-    sub_fs = 9.0 if compact else 10.2
-    kicker_fs = 7.4 if compact else 8.0
+    """Render an editorial poster masthead scaled cleanly to any canvas width."""
+    fig_w, fig_h = fig.get_figwidth(), fig.get_figheight()
+    w_scale = min(1.0, max(0.56, fig_w / 12.2))
+    is_tall = (fig_h / max(fig_w, 1e-6)) > 1.35
+
+    title_fs = (15.5 if compact else 17.2) * w_scale
+    sub_fs = (9.2 if compact else 10.0) * max(w_scale, 0.68)
+    kicker_fs = 8.0 * max(w_scale, 0.72)
+
+    x_left = 0.058 if not is_tall else 0.065
+    dy1 = 0.017 if is_tall else (0.020 if compact else 0.022)
+    dy2 = 0.043 if is_tall else (0.049 if compact else 0.055)
 
     fig.text(
-        0.038,
+        x_left,
         y_top,
         kicker,
         color=theme.cyan if theme.is_dark else theme.coral,
@@ -336,8 +358,8 @@ def add_poster_header(
         ha="left",
     )
     fig.text(
-        0.038,
-        y_top - (0.019 if compact else 0.022),
+        x_left,
+        y_top - dy1,
         title,
         color=theme.fg,
         fontsize=title_fs,
@@ -346,8 +368,8 @@ def add_poster_header(
         ha="left",
     )
     fig.text(
-        0.038,
-        y_top - (0.046 if compact else 0.056),
+        x_left,
+        y_top - dy2,
         subtitle,
         color=theme.fg_muted,
         fontsize=sub_fs,
@@ -435,8 +457,10 @@ def plot_glow_scatter(
 ) -> list[mpl.collections.PathCollection]:
     """Draw a 3-pass glowing scatter in ``cosmic`` or crisp print marker in ``textbook``."""
     cols: list[mpl.collections.PathCollection] = []
+    unfilled = marker in ("x", "+", "|", "_", "1", "2", "3", "4")
     if theme.glow_enabled:
         for mult, halo_alpha in ((5.2, 0.11 * alpha), (2.4, 0.28 * alpha)):
+            halo_kw = {} if unfilled else {"edgecolors": "none"}
             cols.append(
                 ax.scatter(
                     x,
@@ -445,23 +469,36 @@ def plot_glow_scatter(
                     c=color,
                     marker=marker,
                     alpha=halo_alpha,
-                    edgecolors="none",
                     zorder=zorder - 0.2,
+                    **halo_kw,
                 )
             )
-    edge = edgecolor if edgecolor is not None else ("#ffffff" if theme.is_dark else theme.fg)
-    core = ax.scatter(
-        x,
-        y,
-        s=size,
-        c=color,
-        marker=marker,
-        alpha=alpha,
-        edgecolors=edge,
-        linewidths=linewidths,
-        label=label,
-        zorder=zorder,
-    )
+    if unfilled:
+        core = ax.scatter(
+            x,
+            y,
+            s=size,
+            c=color,
+            marker=marker,
+            alpha=alpha,
+            linewidths=max(linewidths, 1.5),
+            label=label,
+            zorder=zorder,
+        )
+    else:
+        edge = edgecolor if edgecolor is not None else ("#ffffff" if theme.is_dark else theme.fg)
+        core = ax.scatter(
+            x,
+            y,
+            s=size,
+            c=color,
+            marker=marker,
+            alpha=alpha,
+            edgecolors=edge,
+            linewidths=linewidths,
+            label=label,
+            zorder=zorder,
+        )
     cols.append(core)
     return cols
 

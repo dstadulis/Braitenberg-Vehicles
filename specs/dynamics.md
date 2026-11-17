@@ -29,7 +29,7 @@ $$\dot{r} = -v(r, \psi)\cos\psi, \qquad \dot{\psi} = \frac{v(r, \psi)}{r}\sin\ps
 
 - **Invariant manifolds:** By reflection symmetry of bilateral sensors, $\omega(r, 0) = \omega(r, \pm\pi) = 0$, so the rays $\psi = 0$ (head-on approach) and $\psi = \pm\pi$ (straight retreat) are invariant lines.
 - **Equilibria and stability:** Fixed points satisfy $\dot{r} = 0$ and $\dot{\psi} = 0$ (either $v = 0$, as in Vehicle 3a *Love* resting at the lamp, or $\psi = \pm\pi/2$ balanced against $v/r = \pm\omega$, or off-axis equilibria). Linearization of the $2 \times 2$ Jacobian classifies stable/unstable nodes, spirals, centers, and saddles.
-- **Supercritical orbital attractor:** Vehicle 4a (*Orbiter*), with crossed excitatory wiring and peaked sensor response (`peak`), repels near the lamp ($r < r^*$) and attracts outside ($r > r^*$), converging onto a stable closed orbit around $r^* \approx 18.4$ in `worlds/one-light.yaml`.
+- **Supercritical orbital attractor:** Vehicle 4a (*Orbiter*), with crossed excitatory wiring and peaked sensor response (`peak`), repels near the lamp ($r < r^*$) and attracts outside ($r > r^*$), converging onto a stable closed circular limit cycle of radius $r^* \approx 19.9$ in $(x, y)$ (`worlds/one-light.yaml`), which quotients on the $SO(2)$-reduced $(r, \psi)$ cylinder to a chirally symmetric pair of **stable spiral relative equilibria** at $(r^*, \pm\pi/2)$.
 
 ### Act II — Symmetry Breaking & Lagrangian Coherent Structures
 
