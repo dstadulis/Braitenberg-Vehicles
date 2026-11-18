@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import subprocess
 import sys
 
 import numpy as np
@@ -392,4 +393,16 @@ def test_simulate_experiment_rollout_all_six_experiments(exp_id: str):
 
 
 def test_shannon_module_never_imports_pygame():
-    assert "pygame" not in sys.modules
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "from braitenberg.dynamics.shannon import simulate_experiment_rollout; "
+                "simulate_experiment_rollout('v5_moth', steps=6, stride=3); "
+                "assert 'pygame' not in sys.modules"
+            ),
+        ],
+        check=True,
+    )
