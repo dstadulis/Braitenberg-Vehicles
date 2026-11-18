@@ -258,6 +258,165 @@ def phase_cmap(theme: Theme) -> LinearSegmentedColormap:
     return LinearSegmentedColormap.from_list(f"braitenberg_phase_{theme.name}", stops, N=256)
 
 
+# --- Shannon Codeword Palettes, Entropy & Activity Colormaps ---
+
+
+CODEWORD_PALETTES: dict[str, tuple[str, ...]] = {
+    "cosmic": (
+        "#38bdf8",  # C0: Electric Sky Cyan
+        "#fb7185",  # C1: Bioluminescent Coral Rose
+        "#fbbf24",  # C2: Solar Amber Gold
+        "#34d399",  # C3: Neon Emerald
+        "#c084fc",  # C4: Luminous Orchid Violet
+        "#f97316",  # C5: Tangerine Plasma
+        "#2dd4bf",  # C6: Seafoam Teal
+        "#e879f9",  # C7: Electric Fuchsia
+    ),
+    "textbook": (
+        "#0284c7",  # C0: Cerulean Ink
+        "#e11d48",  # C1: Crimson Vermilion
+        "#d97706",  # C2: Ochre Amber
+        "#059669",  # C3: Viridian Emerald
+        "#7c3aed",  # C4: Royal Violet
+        "#ea580c",  # C5: Burnt Sienna
+        "#0d9488",  # C6: Deep Teal
+        "#a21caf",  # C7: Plum Magenta
+    ),
+}
+
+RESIDUAL_CODEWORD_COLORS: dict[str, str] = {
+    "cosmic": "#64748b",
+    "textbook": "#71717a",
+}
+
+HERO_RING_COLORS: dict[str, str] = {
+    "cosmic": "#78dcff",    # Homage to render.py SELECTED_RING = (120, 220, 255)
+    "textbook": "#0284c7",
+}
+
+_COSMIC_HEAT_STOPS = np.array(
+    [
+        [8.0, 12.0, 40.0],
+        [40.0, 30.0, 110.0],
+        [150.0, 40.0, 110.0],
+        [230.0, 100.0, 50.0],
+        [255.0, 230.0, 140.0],
+    ],
+    dtype=float,
+) / 255.0
+
+_TEXTBOOK_HEAT_STOPS = np.array(
+    [
+        [250.0, 248.0, 241.0],
+        [254.0, 243.0, 199.0],
+        [252.0, 211.0, 77.0],
+        [245.0, 158.0, 11.0],
+        [180.0, 83.0, 9.0],
+    ],
+    dtype=float,
+) / 255.0
+
+
+def codeword_colors(theme: Theme, n: int = 8) -> list[str]:
+    """Return ``n`` high-contrast Shannon joint-codeword palette hues for ``theme``."""
+    pal = CODEWORD_PALETTES.get(theme.name, CODEWORD_PALETTES["cosmic"])
+    return [pal[i % len(pal)] for i in range(max(1, n))]
+
+
+def codeword_color(theme: Theme, codeword_id: int, max_codewords: int = 8) -> str:
+    """Map an integer codeword index ``c`` to its canonical palette hue (or residual slate)."""
+    pal = CODEWORD_PALETTES.get(theme.name, CODEWORD_PALETTES["cosmic"])
+    cid = int(codeword_id)
+    if cid < 0 or cid >= max_codewords:
+        return RESIDUAL_CODEWORD_COLORS.get(theme.name, "#64748b")
+    return pal[cid % len(pal)]
+
+
+def hero_ring_color(theme: Theme) -> str:
+    """Signature cyan selection ring color marking ``Hero #0`` across all panels."""
+    return HERO_RING_COLORS.get(theme.name, theme.cyan)
+
+
+def entropy_cmap(theme: Theme) -> LinearSegmentedColormap:
+    """Colormap for binary/marginal Shannon entropy ``H in [0, 1]`` bit."""
+    if theme.is_dark:
+        stops = [
+            (0.00, "#0a0f29"),
+            (0.20, "#1e293b"),
+            (0.50, "#7c3aed"),
+            (0.78, "#f43f5e"),
+            (1.00, "#fde047"),
+        ]
+    else:
+        stops = [
+            (0.00, "#faf8f1"),
+            (0.25, "#e2e8f0"),
+            (0.55, "#7c3aed"),
+            (0.82, "#be123c"),
+            (1.00, "#b45309"),
+        ]
+    return LinearSegmentedColormap.from_list(f"braitenberg_entropy_{theme.name}", stops, N=256)
+
+
+def barcode_cmap(theme: Theme, *, is_learning: bool = False) -> LinearSegmentedColormap:
+    """Colormap for 1D Empirical Density Barcode strips over ``[0, 1]``."""
+    if theme.is_dark:
+        if is_learning:
+            stops = [
+                (0.00, "#080e24"),
+                (0.12, "#0f2e2e"),
+                (0.45, "#0d9488"),
+                (0.78, "#34d399"),
+                (1.00, "#d1fae5"),
+            ]
+        else:
+            stops = [
+                (0.00, "#080e24"),
+                (0.12, "#132347"),
+                (0.42, "#0284c7"),
+                (0.74, "#38bdf8"),
+                (0.92, "#fbbf24"),
+                (1.00, "#fef9c3"),
+            ]
+    else:
+        if is_learning:
+            stops = [
+                (0.00, "#f1ede2"),
+                (0.18, "#d1fae5"),
+                (0.55, "#10b981"),
+                (0.85, "#047857"),
+                (1.00, "#064e3b"),
+            ]
+        else:
+            stops = [
+                (0.00, "#f1ede2"),
+                (0.18, "#dbeafe"),
+                (0.52, "#2563eb"),
+                (0.82, "#1d4ed8"),
+                (1.00, "#1e1b4b"),
+            ]
+    tag = "learn" if is_learning else "sig"
+    return LinearSegmentedColormap.from_list(f"braitenberg_barcode_{tag}_{theme.name}", stops, N=256)
+
+
+def activity_fill_rgba(levels: np.ndarray | float, theme: Theme) -> np.ndarray:
+    """Vectorized Braitenberg signal fill mapping ``[0, 1]`` -> RGBA (homage to ``render.py``)."""
+    stops = _COSMIC_HEAT_STOPS if theme.is_dark else _TEXTBOOK_HEAT_STOPS
+    arr = np.clip(np.asarray(levels, dtype=float), 0.0, 1.0)
+    pos = arr * (len(stops) - 1)
+    idx = np.minimum(pos.astype(int), len(stops) - 2)
+    frac = (pos - idx)[..., None]
+    rgb = stops[idx] * (1.0 - frac) + stops[idx + 1] * frac
+    alpha = np.ones((*arr.shape, 1), dtype=float)
+    return np.concatenate([rgb, alpha], axis=-1)
+
+
+def activity_fill_color(level: float, theme: Theme) -> tuple[float, float, float, float]:
+    """Scalar convenience wrapper around :func:`activity_fill_rgba`."""
+    rgba = activity_fill_rgba(float(level), theme)
+    return (float(rgba[0]), float(rgba[1]), float(rgba[2]), float(rgba[3]))
+
+
 # --- Axes, Typography & Halo Helpers ---
 
 
@@ -738,4 +897,57 @@ def plot_lamp_beacon(
         zorder=zorder,
     )
     artists.append(core)
+    return artists
+
+
+def plot_hero_beacon(
+    ax: mpl.axes.Axes,
+    x: float,
+    y: float,
+    theme: Theme,
+    *,
+    fill_color: str | None = None,
+    size: float = 92.0,
+    label: str | None = None,
+    zorder: float = 10,
+) -> list[mpl.artist.Artist]:
+    """Render the signature Cyan Selection Target Ring around ``Hero #0``."""
+    ring_col = hero_ring_color(theme)
+    core_col = fill_color or ring_col
+    artists: list[mpl.artist.Artist] = []
+    if theme.glow_enabled:
+        artists.append(
+            ax.scatter(
+                [x],
+                [y],
+                s=size * 4.2,
+                c=[ring_col],
+                alpha=0.22,
+                edgecolors="none",
+                zorder=zorder - 0.3,
+            )
+        )
+    artists.append(
+        ax.scatter(
+            [x],
+            [y],
+            s=size * 2.15,
+            facecolors="none",
+            edgecolors=ring_col,
+            linewidths=1.8,
+            zorder=zorder - 0.1,
+        )
+    )
+    artists.append(
+        ax.scatter(
+            [x],
+            [y],
+            s=size * 0.72,
+            facecolors=core_col,
+            edgecolors="#ffffff" if theme.is_dark else theme.fg,
+            linewidths=1.2,
+            label=label,
+            zorder=zorder,
+        )
+    )
     return artists
