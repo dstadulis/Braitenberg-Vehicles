@@ -71,13 +71,13 @@ def make_neural_tier_axes(
     """Subdivide ``slot`` into ``(ax_schem, ax_barcodes, ax_raster)``."""
     view = neural_view.strip().lower()
     if view == "raster":
-        ratios = [0.45, 0.21, 0.34]
+        ratios = [0.46, 0.21, 0.33]
     elif aspect == "9:16":
-        ratios = [0.51, 0.26, 0.23]
+        ratios = [0.54, 0.24, 0.22]
     else:
-        ratios = [0.53, 0.25, 0.22]
+        ratios = [0.57, 0.23, 0.20]
 
-    sub = slot.subgridspec(3, 1, height_ratios=ratios, hspace=0.14 if aspect != "9:16" else 0.16)
+    sub = slot.subgridspec(3, 1, height_ratios=ratios, hspace=0.13 if aspect != "9:16" else 0.15)
     ax_schem = fig.add_subplot(sub[0, 0])
     ax_bar = fig.add_subplot(sub[1, 0])
     ax_ras = fig.add_subplot(sub[2, 0])
@@ -251,7 +251,7 @@ def _select_featured_barcodes(
 # ---------------------------------------------------------------------------
 
 
-def _part_radii(p: Part, bw: float, bl: float, crowded: bool) -> tuple[float, float]:
+def _part_radii(p: Part, bw: float, bl: float, crowded: bool, very_crowded: bool = False) -> tuple[float, float]:
     """Outer visual half-extents ``(rx, ry)`` in schematic data coordinates."""
     if p.kind == "camera" and p.shape is not None:
         rows, cols = p.shape if len(p.shape) == 2 else (1, p.shape[0])
@@ -267,9 +267,9 @@ def _part_radii(p: Part, bw: float, bl: float, crowded: bool) -> tuple[float, fl
         n_ports = max(len(p.inputs), len(p.outputs), 2)
         return (0.12 * n_ports, 0.11)
     if p.kind == "motor":
-        return (0.125, 0.082)
-    base = 0.068 if crowded else 0.076
-    ring = 0.030 if crowded else 0.034
+        return (0.120, 0.078)
+    base = 0.058 if very_crowded else (0.066 if crowded else 0.076)
+    ring = 0.024 if very_crowded else (0.028 if crowded else 0.034)
     return (base + ring, base + ring)
 
 
@@ -292,17 +292,20 @@ def solve_part_labels(
     *,
     xlim: tuple[float, float] = (-1.28, 1.28),
     ylim: tuple[float, float] = (-1.18, 1.20),
+    char_w: float | None = None,
+    char_h: float | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Compute collision-free label placements ``{part_name: {x, y, ha, va, bbox, leader}}``.
 
     Guarantees that crowded circuits such as Vehicle 9 (*Shy*, 16 parts with a vertical
     ``front_ahead -> symmetric -> fleeing`` spine) and Vehicle 5/7/12 never suffer text-on-node
-    or text-on-text collisions.
+    or text-on-text collisions across any aspect ratio.
     """
     bw, bl = body
     crowded = len(parts) >= 12 or any(p.shape is not None for p in parts)
-    char_w = 0.036 if crowded else 0.041
-    char_h = 0.076 if crowded else 0.084
+    very_crowded = len(parts) >= 15
+    cw = char_w if char_w is not None else (0.036 if crowded else 0.041)
+    ch = char_h if char_h is not None else (0.076 if crowded else 0.084)
 
     pos_map: dict[str, tuple[float, float]] = {}
     rad_map: dict[str, tuple[float, float]] = {}
@@ -310,14 +313,14 @@ def solve_part_labels(
 
     for p in parts:
         px, py = p.position[0] * bw, p.position[1] * bl
-        rx, ry = _part_radii(p, bw, bl, crowded)
+        rx, ry = _part_radii(p, bw, bl, crowded, very_crowded)
         pos_map[p.name] = (px, py)
         rad_map[p.name] = (rx, ry)
-        pad = 0.012
+        pad = 0.014
         node_boxes[p.name] = (px - rx - pad, py - ry - pad, px + rx + pad, py + ry + pad)
         if p.kind == "sensor":
             # Include forward sensor antennae in obstacle footprint
-            node_boxes[p.name] = (px - rx - pad, py - ry - pad, px + rx + pad, py + ry + 0.085)
+            node_boxes[p.name] = (px - rx - pad, py - ry - pad, px + rx + pad, py + ry + 0.082)
 
     # Self-loop arcs also count as obstacles so labels avoid landing on self-feedback loops
     loop_boxes: list[tuple[float, float, float, float]] = []
@@ -352,11 +355,11 @@ def solve_part_labels(
     for p in ordered:
         px, py = pos_map[p.name]
         rx, ry = rad_map[p.name]
-        tw = max(0.11, len(p.name) * char_w + 0.022)
-        th = char_h
+        tw = max(0.10, len(p.name) * cw + 0.018)
+        th = ch
 
-        gap_y = 0.022
-        gap_x = 0.026
+        gap_y = 0.020
+        gap_x = 0.024
 
         outward_side = "left" if px < -0.08 else ("right" if px > 0.08 else "right")
         inward_side = "right" if outward_side == "left" else "left"
@@ -364,12 +367,16 @@ def solve_part_labels(
         raw_candidates: list[tuple[str, float, float, str, str, float]] = [
             ("below", px, py - ry - gap_y, "center", "top", 0.0),
             ("above", px, py + ry + gap_y, "center", "bottom", 0.14),
-            ("right", px + rx + gap_x, py, "left", "center", 0.20 if outward_side == "right" else 0.28),
-            ("left", px - rx - gap_x, py, "right", "center", 0.20 if outward_side == "left" else 0.28),
-            ("above_right", px + rx * 0.75, py + ry + gap_y, "left", "bottom", 0.34),
-            ("above_left", px - rx * 0.75, py + ry + gap_y, "right", "bottom", 0.34),
-            ("below_right", px + rx * 0.75, py - ry - gap_y, "left", "top", 0.34),
-            ("below_left", px - rx * 0.75, py - ry - gap_y, "right", "top", 0.34),
+            ("right", px + rx + gap_x, py, "left", "center", 0.19 if outward_side == "right" else 0.28),
+            ("left", px - rx - gap_x, py, "right", "center", 0.19 if outward_side == "left" else 0.28),
+            ("above_right", px + rx * 0.72, py + ry + gap_y, "left", "bottom", 0.32),
+            ("above_left", px - rx * 0.72, py + ry + gap_y, "right", "bottom", 0.32),
+            ("below_right", px + rx * 0.72, py - ry - gap_y, "left", "top", 0.32),
+            ("below_left", px - rx * 0.72, py - ry - gap_y, "right", "top", 0.32),
+            ("right_far", px + rx + 0.14, py + 0.04, "left", "center", 0.52 if outward_side == "right" else 0.65),
+            ("left_far", px - rx - 0.14, py + 0.04, "right", "center", 0.52 if outward_side == "left" else 0.65),
+            ("above_far", px, py + ry + 0.11, "center", "bottom", 0.58),
+            ("below_far", px, py - ry - 0.11, "center", "top", 0.58),
         ]
 
         # Domain-aware aesthetic biases:
@@ -524,6 +531,7 @@ class ShannonNeuralPanelArtist:
         self.bw, self.bl = diagram.body
         self.parts_order = [p.name for p in diagram.parts]
         self.crowded = len(diagram.parts) >= 12 or any(p.shape is not None for p in diagram.parts)
+        self.very_crowded = len(diagram.parts) >= 15
 
         self._setup_tier_a(diagram, initial_snapshot)
         self._setup_tier_b(diagram, initial_snapshot)
@@ -611,7 +619,7 @@ class ShannonNeuralPanelArtist:
             p.name: (p.position[0] * self.bw, p.position[1] * self.bl) for p in diagram.parts
         }
         self.part_radii: dict[str, tuple[float, float]] = {
-            p.name: _part_radii(p, self.bw, self.bl, self.crowded) for p in diagram.parts
+            p.name: _part_radii(p, self.bw, self.bl, self.crowded, self.very_crowded) for p in diagram.parts
         }
 
         # Module boxes underneath wires
@@ -735,9 +743,11 @@ class ShannonNeuralPanelArtist:
         self.grid_images: dict[str, mpl.image.AxesImage] = {}
         self.grid_borders: dict[str, Rectangle] = {}
 
-        base_r = 0.068 if self.crowded else 0.076
-        ring_w = (0.035 if self.neural_view == "codebook" else 0.027) if self.crowded else (
-            0.040 if self.neural_view == "codebook" else 0.031
+        base_r = 0.058 if self.very_crowded else (0.066 if self.crowded else 0.076)
+        ring_w = (
+            (0.029 if self.neural_view == "codebook" else 0.023)
+            if self.very_crowded
+            else ((0.034 if self.neural_view == "codebook" else 0.027) if self.crowded else (0.040 if self.neural_view == "codebook" else 0.031))
         )
         r_ring_out = base_r + 0.005 + ring_w
         quiescent_col = "#162044" if theme.is_dark else "#e5e0d3"
@@ -961,21 +971,34 @@ class ShannonNeuralPanelArtist:
                         t_str,
                         ha="center",
                         va="center",
-                        fontsize=(6.4 if len(t_str) >= 4 else 7.0) * self.scale,
+                        fontsize=(5.5 if self.very_crowded else (6.2 if len(t_str) >= 4 else 6.8)) * self.scale,
                         fontweight="bold",
                         color=theme.fg,
                         zorder=7.2,
                     )
 
-        # Smart non-overlapping part labels with crisp stroke halos
+        # Smart non-overlapping part labels using exact physical-to-data font metrics
+        if fig is not None:
+            bbox_a = ax.get_position()
+            ax_w_in = max(2.0, bbox_a.width * fig.get_figwidth())
+            ax_h_in = max(1.5, bbox_a.height * fig.get_figheight())
+        else:
+            ax_w_in, ax_h_in = 4.2, 3.4
+
+        label_fs = min(7.2, max(5.2, ax_h_in * (1.88 if self.very_crowded else (2.05 if self.crowded else 2.35))))
+        cw_data = (label_fs * 0.64 / 72.0) * ((xlim[1] - xlim[0]) / ax_w_in)
+        ch_data = (label_fs * 1.32 / 72.0) * ((ylim[1] - ylim[0]) / ax_h_in)
+
         self.label_placements = solve_part_labels(
             diagram.parts,
             self.bundled_wires,
             diagram.body,
             xlim=xlim,
             ylim=ylim,
+            char_w=cw_data,
+            char_h=ch_data,
         )
-        label_halo = [pe.withStroke(linewidth=2.8, foreground=body_fill, alpha=0.95)]
+        label_halo = [pe.withStroke(linewidth=2.6, foreground=body_fill, alpha=0.95)]
         lbl_col = "#e2e8f0" if theme.is_dark else "#27272a"
 
         for p_name, spec in self.label_placements.items():
@@ -992,7 +1015,7 @@ class ShannonNeuralPanelArtist:
                     [sy_l, spec["y"]],
                     color=theme.fg_dim,
                     lw=0.65,
-                    alpha=0.55,
+                    alpha=0.58,
                     zorder=7.8,
                 )
             ax.text(
@@ -1001,7 +1024,7 @@ class ShannonNeuralPanelArtist:
                 p_name,
                 ha=spec["ha"],
                 va=spec["va"],
-                fontsize=(6.7 if self.crowded else 7.4) * self.scale,
+                fontsize=label_fs,
                 fontweight="bold",
                 color=lbl_col,
                 path_effects=label_halo,
@@ -1042,13 +1065,16 @@ class ShannonNeuralPanelArtist:
                 zorder=2,
             )
         )
+        fig_b = ax.figure
+        bar_w_in = (ax.get_position().width * fig_b.get_figwidth()) if fig_b is not None else 4.2
+        tel_fs = min(7.4, max(5.6, bar_w_in * 1.62))
         self.telemetry_text = ax.text(
             0.50,
             float(n_rows) + 0.68,
             "",
             ha="center",
             va="center",
-            fontsize=7.6 * self.scale,
+            fontsize=tel_fs,
             fontweight="bold",
             color=theme.cyan if theme.is_dark else theme.fg,
             zorder=5,
@@ -1426,7 +1452,7 @@ class ShannonNeuralPanelArtist:
         tc_bits = float(snapshot.get("total_correlation_bits", 0.0))
         sp_mi = float(snapshot.get("spatial_mi_bits", 0.0))
         self.telemetry_text.set_text(
-            f"H(W) = {h_joint:.2f} bits   ·   Synergy TC = {tc_bits:.2f} bits   ·   I(Phase; W) = {sp_mi:.2f} bits"
+            f"H(W) = {h_joint:.2f}b  ·  Synergy TC = {tc_bits:.2f}b  ·  I(Phase; W) = {sp_mi:.2f}b"
         )
 
         barcodes = snapshot.get("barcodes") or {}

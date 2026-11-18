@@ -73,12 +73,12 @@ CANONICAL_EXPERIMENTS: tuple[str, ...] = (
 )
 
 EXPERIMENT_STEPS: dict[str, tuple[int, int]] = {
-    "v4a_orbiter": (480, 3),
-    "v5_moth": (520, 3),
-    "v5_forager": (640, 4),
-    "v7_wary_moth": (640, 4),
-    "v9_shy": (680, 4),
-    "v12_daydreamer": (520, 3),
+    "v4a_orbiter": (420, 2),
+    "v5_moth": (420, 2),
+    "v5_forager": (520, 2),
+    "v7_wary_moth": (520, 2),
+    "v9_shy": (400, 2),
+    "v12_daydreamer": (440, 2),
 }
 
 _ROLLOUT_CACHE: dict[tuple[str, int, int, int], dict[str, Any]] = {}
@@ -128,9 +128,9 @@ def _make_tripanel_slots(
             1,
             left=0.105,
             right=0.955,
-            bottom=0.048,
-            top=0.908,
-            height_ratios=[0.265, 0.265, 0.470],
+            bottom=0.046,
+            top=0.888,
+            height_ratios=[0.245, 0.255, 0.500],
             hspace=0.22,
         )
         return fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[1, 0]), gs[2, 0]
@@ -153,12 +153,12 @@ def _make_tripanel_slots(
     gs = fig.add_gridspec(
         1,
         3,
-        left=0.046,
-        right=0.984,
-        bottom=0.092,
-        top=0.848,
-        width_ratios=[0.98, 1.02, 1.16],
-        wspace=0.20,
+        left=0.044,
+        right=0.985,
+        bottom=0.088,
+        top=0.855,
+        width_ratios=[0.95, 0.99, 1.22],
+        wspace=0.19,
     )
     return fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1]), gs[0, 2]
 
@@ -518,13 +518,16 @@ def get_experiment_rollout(
                 env_y = _align_2d(raw.get(f"{prefix}y"), (n_frames, ex.shape[1]))
                 env_h = _align_2d(raw.get(f"{prefix}heading"), (n_frames, ex.shape[1]))
                 break
-    if env_x is None and isinstance(raw.get("env_vehicles"), dict):
-        ev = raw["env_vehicles"]
-        if "x" in ev and np.asarray(ev["x"]).size > 0:
-            ex = np.asarray(ev["x"], dtype=float)
-            env_x = _align_2d(ex, (n_frames, ex.shape[1]))
-            env_y = _align_2d(ev.get("y"), (n_frames, ex.shape[1]))
-            env_h = _align_2d(ev.get("heading"), (n_frames, ex.shape[1]))
+    if env_x is None:
+        for ev_key in ("env_targets", "env_vehicles"):
+            ev = raw.get(ev_key)
+            if isinstance(ev, dict) and "x" in ev and np.asarray(ev["x"]).size > 0:
+                ex = np.asarray(ev["x"], dtype=float)
+                if ex.ndim == 2 and ex.shape[1] > 0:
+                    env_x = _align_2d(ex, (n_frames, ex.shape[1]))
+                    env_y = _align_2d(ev.get("y"), (n_frames, ex.shape[1]))
+                    env_h = _align_2d(ev.get("heading"), (n_frames, ex.shape[1]))
+                    break
 
     # Choose the peak-synergy showcase frame in [42%..94%] of rollout for static 4K posters
     i_start = max(0, int(0.42 * n_frames))
@@ -632,9 +635,9 @@ def _setup_arena_and_phase(
         theme,
         tag="A",
         title=(
-            f"Physical Dark Arena · {n_focal} Daydreamers"
+            f"Dark Arena · N={n_focal} ({vdef.general.name})"
             if is_unwrapped_dark
-            else f"Physical Arena · {n_focal} {vdef.general.name}s + Hero #0"
+            else f"Physical Arena · N={n_focal} ({vdef.general.name})"
         ),
         xlabel=r"Unwrapped $x$" if is_unwrapped_dark else r"Arena $x$",
         ylabel=r"Unwrapped $y$" if is_unwrapped_dark else r"Arena $y$",
@@ -643,8 +646,14 @@ def _setup_arena_and_phase(
     ax_arena.set_aspect("equal", adjustable="box")
 
     if exp_id == "v4a_orbiter" and "light" in world.stimuli and world.stimuli["light"].sources:
-        bg = _get_orbiter_ftle_bg(vdef, world)
-        lcs = bg["lcs"]
+        pbg = rollout["raw"].get("phase_background") or {}
+        if "ftle" in pbg and "polar_field" in pbg:
+            lcs = pbg["ftle"]
+            lc = pbg.get("limit_cycle")
+        else:
+            bg = _get_orbiter_ftle_bg(vdef, world)
+            lcs = bg["lcs"]
+            lc = bg["fpc"].get("limit_cycle")
         xg, yg = np.asarray(lcs["x"], dtype=float), np.asarray(lcs["y"], dtype=float)
         x1d = xg[0, :] if xg.ndim == 2 else xg
         y1d = yg[:, 0] if yg.ndim == 2 else yg
@@ -661,7 +670,6 @@ def _setup_arena_and_phase(
             aspect="equal",
             zorder=1,
         )
-        lc = bg["fpc"].get("limit_cycle")
         r_star = float(lc.get("r_mean", 19.9)) if lc else 19.9
         th_ring = np.linspace(0, 2 * math.pi, 160)
         for src in world.stimuli["light"].sources:
@@ -678,6 +686,13 @@ def _setup_arena_and_phase(
             plot_lamp_beacon(ax_arena, sx, sy, theme, size=78, zorder=8)
         ax_arena.set_xlim(0.0, arena.width)
         ax_arena.set_ylim(0.0, arena.height)
+
+    elif exp_id == "v9_shy":
+        ax_arena.set_xlim(0.0, arena.width)
+        ax_arena.set_ylim(0.0, arena.height)
+        for frac in (0.25, 0.50, 0.75):
+            ax_arena.axvline(arena.width * frac, color=theme.grid, lw=0.5, alpha=0.28, zorder=1)
+            ax_arena.axhline(arena.height * frac, color=theme.grid, lw=0.5, alpha=0.28, zorder=1)
 
     elif not is_unwrapped_dark and world.stimuli:
         stim_key = "light" if "light" in world.stimuli else next(iter(world.stimuli))
@@ -746,20 +761,14 @@ def _setup_arena_and_phase(
         ax_arena.set_xlim(0.0, arena.width)
         ax_arena.set_ylim(0.0, arena.height)
 
-    elif exp_id == "v9_shy":
-        ax_arena.set_xlim(0.0, arena.width)
-        ax_arena.set_ylim(0.0, arena.height)
-        # Subtle arena coordinate hairlines for open-field Shy arena
-        for frac in (0.25, 0.50, 0.75):
-            ax_arena.axvline(arena.width * frac, color=theme.grid, lw=0.5, alpha=0.28, zorder=1)
-            ax_arena.axhline(arena.height * frac, color=theme.grid, lw=0.5, alpha=0.28, zorder=1)
-
     else:
         # Vehicle 12 Daydreamer dark unwrapped arena
         pad = 5.0
         cx = 0.5 * (float(np.nanmin(uxs)) + float(np.nanmax(uxs)))
         cy = 0.5 * (float(np.nanmin(uys)) + float(np.nanmax(uys)))
-        span = 0.5 * max(float(np.nanptp(uxs)), float(np.nanptp(uys)), 26.0) + pad
+        span_x = float(np.nanmax(uxs) - np.nanmin(uxs))
+        span_y = float(np.nanmax(uys) - np.nanmin(uys))
+        span = 0.5 * max(span_x, span_y, 26.0) + pad
         ax_arena.set_xlim(cx - span, cx + span)
         ax_arena.set_ylim(cy - span, cy + span)
         # Faint full Hero #0 geometric mandala preview track
@@ -841,7 +850,7 @@ def _setup_arena_and_phase(
 
     pos_x = uxs if is_unwrapped_dark else xs
     pos_y = uys if is_unwrapped_dark else ys
-    tail_len = 22
+    tail_len = 85 if is_unwrapped_dark else 24
 
     def update_ab(f_idx: int) -> None:
         sn = snapshots[f_idx]
@@ -951,8 +960,8 @@ def _prepare_phase_portrait(
         ax.plot(r_flee, np.full_like(r_flee, +4.5), color=theme.emerald, lw=1.3, ls="--", alpha=0.45, label="Repulsion sheet (burned=1)", zorder=2.5)
         ax.annotate(
             "Burn latch\n0 → 1",
-            xy=(r_pain, 3.8),
-            xytext=(r_pain + 6.5, 3.8),
+            xy=(r_pain, 4.45),
+            xytext=(r_pain + 5.8, 5.45),
             color=theme.coral,
             fontsize=7.4,
             fontweight="bold",
@@ -1142,9 +1151,9 @@ def _prepare_phase_portrait(
             zorder=8,
         )
     ax.scatter([0.0], [0.0], s=60, marker="D", c=[theme.violet], edgecolors="#ffffff" if theme.is_dark else theme.fg, label="Caudate origin (Z=0)", zorder=7)
-    ax.set_xlim(-0.58, 0.58)
-    ax.set_ylim(-0.56, 0.60)
-    style_legend(ax.legend(loc="lower right"), theme)
+    ax.set_xlim(-0.68, 0.68)
+    ax.set_ylim(-0.58, 0.76)
+    style_legend(ax.legend(loc="upper center", ncol=2, fontsize=7.0, columnspacing=1.0), theme)
     return z_re, z_im, False
 
 

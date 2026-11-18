@@ -28,17 +28,17 @@ ASPECT_SPECS: dict[str, dict[str, tuple[float, float, int]]] = {
     "16:9": {
         "poster": (12.8, 7.2, 300),   # 3840 x 2160 (4K UHD)
         "mp4": (12.8, 7.2, 150),      # 1920 x 1080 (1080p60)
-        "gif": (10.4, 5.85, 100),     # 1040 x 585 (crisp README widescreen)
+        "gif": (12.8, 7.2, 82),       # 1050 x 590 (exact 12.8x7.2 layout parity!)
     },
     "1:1": {
         "poster": (9.0, 9.0, 240),    # 2160 x 2160 (4K-class square)
         "mp4": (9.0, 9.0, 120),       # 1080 x 1080 (Instagram / X square)
-        "gif": (7.2, 7.2, 100),       # 720 x 720
+        "gif": (9.0, 9.0, 80),        # 720 x 720 (exact 9.0x9.0 layout parity!)
     },
     "9:16": {
         "poster": (7.2, 12.8, 300),   # 2160 x 3840 (4K Vertical)
         "mp4": (7.2, 12.8, 150),      # 1080 x 1920 (Reels / Shorts / TikTok)
-        "gif": (5.85, 10.4, 100),     # 585 x 1040
+        "gif": (7.2, 12.8, 82),       # 590 x 1050 (exact 7.2x12.8 layout parity!)
     },
 }
 
