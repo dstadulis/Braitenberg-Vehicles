@@ -4,7 +4,7 @@ It reads the simulation state and draws it; user interaction (dragging sources,
 pausing, resetting) changes only the running simulation, never the files.
 
 Keys: space pause/resume, right arrow step (when paused), R reset, T trail,
-V camera views, D dynamics overlay, Tab next stimulus, +/- simulation speed, Esc quit.
+V camera views, D dynamics overlay, N neural view, Tab next stimulus, +/- simulation speed, Esc quit.
 Drag sources with the mouse; click a vehicle to show it in the diagram panel (specs/vehicle-diagram.md).
 """
 
@@ -25,6 +25,11 @@ from braitenberg.dynamics.phase_plane import (
     polar_coords,
     polar_field,
     wrap_pi,
+)
+from braitenberg.dynamics.shannon import (
+    compute_shannon_snapshot,
+    select_focal_indices,
+    select_focal_vehicles,
 )
 from braitenberg.scenario import Scenario
 from braitenberg.sim import Simulation
@@ -78,8 +83,18 @@ CONTROL_COLOR = (170, 130, 245)   # a threshold control and its arrows (Vehicle 
 LEARNING_LABELS = {"mnemotrix": "M", "ergotrix": "E"}
 STRENGTH_TICK = 0.7           # a connection is active above this strength
 
-# Live Strogatz complex-dynamics overlay (cycled with the D key).
-DYNAMICS_MODES = ("Off", "Flow Field", "Phase Portrait", "Flow + Phase")
+# Live Strogatz x Shannon complex-dynamics overlay (cycled with D and N keys).
+DYNAMICS_MODES = ("Off", "Arena Flow", "Phase + Shannon Brain", "Full Tri-View")
+NEURAL_VIEWS = ("composite", "codebook", "entropy", "raster")
+CODEWORD_PALETTE = (
+    (56, 189, 248),    # C0: bioluminescent cyan
+    (251, 113, 133),   # C1: electric coral
+    (251, 191, 36),    # C2: solar amber
+    (52, 211, 153),    # C3: emerald
+    (192, 132, 252),   # C4: violet
+    (129, 140, 248),   # C5: soft indigo
+)
+CODEWORD_RESIDUAL = (148, 163, 184)
 HUD_GLASS_BG = (10, 14, 36, 215)
 HUD_HEADER_BG = (18, 26, 62, 232)
 HUD_PLOT_BG = (6, 9, 26, 185)
@@ -96,6 +111,13 @@ PHASE_VIOLET = (192, 132, 252)    # neural ring & homeostatic threshold control
 PHASE_HISTORY_LEN = 320
 
 
+def codeword_color(cw_id: int) -> tuple[int, int, int]:
+    """Map a Shannon joint codeword index to its distinct high-contrast RGB hue."""
+    if 0 <= int(cw_id) < len(CODEWORD_PALETTE):
+        return CODEWORD_PALETTE[int(cw_id)]
+    return CODEWORD_RESIDUAL
+
+
 def learning_colors(w) -> tuple[tuple, tuple]:
     """A learning wire's colors, inactive and fully active."""
     return (ERGO_DIM, ERGO_ON) if w.learning == "ergotrix" else (LEARN_DIM, LEARN_ON)
@@ -110,7 +132,9 @@ def heat_colors(values: np.ndarray) -> np.ndarray:
 
 
 class Renderer:
-    def __init__(self, scenario: Scenario, dynamics_mode: int = 0):
+    def __init__(
+        self, scenario: Scenario, dynamics_mode: int = 0, neural_view: str = "composite"
+    ):
         self.original = scenario
         world = scenario.world
         arena = world.arena
@@ -137,6 +161,7 @@ class Renderer:
         self.show_trail = True
         self.show_views = False
         self.dynamics_mode = int(dynamics_mode) % len(DYNAMICS_MODES)
+        self.neural_view = neural_view if neural_view in NEURAL_VIEWS else NEURAL_VIEWS[0]
         self.paused = False
         # About 0.05 simulated seconds per frame, whatever the time step.
         self.steps_per_frame = max(1, round(0.05 / scenario.simulation.dt))
@@ -147,6 +172,7 @@ class Renderer:
         self.small_font = pygame.font.Font(None, 17)
         self.tiny_font = pygame.font.Font(None, 15)
         self._equilibria_cache: dict[tuple, dict] = {}
+        self._ring_patch_cache: dict[tuple, pygame.Surface] = {}
         self.reset()
 
     # --- state ---
@@ -163,16 +189,26 @@ class Renderer:
         self.phase_bg_key = None
         self.phase_bg_surface: pygame.Surface | None = None
         self.phase_bg_meta: dict = {}
+        self._prev_shannon_snap: dict | None = None
+        self._shannon_snap: dict | None = None
+        self._shannon_snap_key: tuple | None = None
+        self._shannon_species_key: tuple | None = None
+        self._shannon_snap_time: float = -1.0
         if self.selected >= len(self.sim.vehicles):
             self.selected = 0
         self.record_trails()
 
     def advance(self, steps: int) -> None:
-        for _ in range(steps):
+        for step_i in range(steps):
+            if self.dynamics_mode >= 2 and step_i == steps - 1 and steps >= 2:
+                # Capture t - dt snapshot right before the final step so live Transfer Entropy
+                # T_{S -> D} = I(D_t; S_{t-1} | D_{t-1}) always measures exact 1-step dynamics.
+                self._get_live_shannon_snapshot()
             self.sim.step()
             self.record_trails()
 
     def record_trails(self) -> None:
+        arena = self.sim.world.arena
         for idx, (trail, kin, hist, v) in enumerate(
             zip(self.trails, self.trail_kinematics, self.phase_history, self.sim.vehicles)
         ):
@@ -181,8 +217,16 @@ class Renderer:
             src_info = self._primary_source_for(v)
             if src_info is not None:
                 stim_name, src_idx, src = src_info
-                r_val, psi_val = _polar_coords(v.x, v.y, v.heading, src.position, self.sim.world.arena)
+                r_val, psi_val = _polar_coords(v.x, v.y, v.heading, src.position, arena)
                 src_tag = (stim_name, src_idx)
+            elif any(s.camera for s in v.definition.sensors) and len(self.sim.vehicles) > 1:
+                tgt_info = self._primary_target_vehicle_for(idx, v)
+                if tgt_info is not None:
+                    _, tgt_idx, tgt_v = tgt_info
+                    r_val, psi_val = _polar_coords(v.x, v.y, v.heading, (tgt_v.x, tgt_v.y), arena)
+                    src_tag = ("target", tgt_idx)
+                else:
+                    r_val, psi_val, src_tag = 0.0, 0.0, None
             else:
                 r_val, psi_val, src_tag = 0.0, 0.0, None
             e_frac = (v.energy / v.definition.energy.max
@@ -226,11 +270,15 @@ class Renderer:
                 self.show_views = not self.show_views
             elif event.key == pygame.K_d:
                 self.dynamics_mode = (self.dynamics_mode + 1) % len(DYNAMICS_MODES)
+            elif event.key == pygame.K_n:
+                nv_idx = NEURAL_VIEWS.index(self.neural_view)
+                self.neural_view = NEURAL_VIEWS[(nv_idx + 1) % len(NEURAL_VIEWS)]
             elif event.key == pygame.K_TAB and self.stimulus_names:
                 self.stimulus_index = (self.stimulus_index + 1) % len(self.stimulus_names)
                 self.heatmap = None
                 self.flow_cache_key = None
                 self.phase_bg_key = None
+                self._shannon_snap_key = None
             elif event.key in (pygame.K_PLUS, pygame.K_EQUALS, pygame.K_KP_PLUS):
                 self.steps_per_frame = min(self.steps_per_frame * 2, 256)
             elif event.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
@@ -243,6 +291,7 @@ class Renderer:
                     self.selected = picked
                     self.flow_cache_key = None
                     self.phase_bg_key = None
+                    self._shannon_snap_key = None
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             self.dragging = None
         elif event.type == pygame.MOUSEMOTION and self.dragging:
@@ -255,6 +304,7 @@ class Renderer:
             self.heatmap = None
             self.flow_cache_key = None
             self.phase_bg_key = None
+            self._shannon_snap_key = None
         return True
 
     def source_at(self, pos) -> tuple[str, int] | None:
@@ -275,6 +325,107 @@ class Renderer:
             if d <= best_d:
                 best, best_d = i, d
         return best
+
+    # --- Axiom 1 focal species filtering & live Shannon ensemble state ---
+
+    def _focal_group(self) -> tuple[list[int], list, int]:
+        """Return `(focal_sim_indices, focal_vehicles, hero_index)` strictly matching `hero`'s species."""
+        if not self.sim.vehicles:
+            return [], [], 0
+        hero = self.sim.vehicles[self.selected]
+        focal_indices = select_focal_indices(self.sim.vehicles, focal_definition=hero.definition)
+        focal_vehicles = select_focal_vehicles(self.sim.vehicles, focal_definition=hero.definition)
+        hero_index = focal_indices.index(self.selected) if self.selected in focal_indices else 0
+        return focal_indices, focal_vehicles, hero_index
+
+    def _primary_target_vehicle_for(self, sim_idx: int, v) -> tuple[str, int, object] | None:
+        """Nearest moving target vehicle for camera-equipped vehicles (preferring environmental agents)."""
+        if len(self.sim.vehicles) <= 1:
+            return None
+        arena = self.sim.world.arena
+        vt, vn = v.definition.general.type, v.definition.general.name
+        env_targets = [
+            (i, w) for i, w in enumerate(self.sim.vehicles)
+            if i != sim_idx and (w.definition.general.type != vt or w.definition.general.name != vn)
+        ]
+        pool = env_targets if env_targets else [
+            (i, w) for i, w in enumerate(self.sim.vehicles) if i != sim_idx
+        ]
+        if not pool:
+            return None
+        best_i, best_w = min(
+            pool,
+            key=lambda item: math.hypot(*arena.delta(v.x - item[1].x, v.y - item[1].y)),
+        )
+        return ("target", best_i, best_w)
+
+    def _focal_phase_coords(
+        self, focal_indices: list[int], focal_vehicles: list, hero
+    ) -> tuple[np.ndarray, np.ndarray, str]:
+        """Compute live 2D phase coordinates `(px, py, kind)` across `focal_vehicles`."""
+        n = len(focal_vehicles)
+        arena = self.sim.world.arena
+        if self._all_sensed_sources(hero, active_only=False):
+            rx = np.zeros(n, dtype=float)
+            py = np.zeros(n, dtype=float)
+            for k, peer in enumerate(focal_vehicles):
+                p_src = self._primary_source_for(peer)
+                if p_src is not None:
+                    rv, pv = _polar_coords(peer.x, peer.y, peer.heading, p_src[2].position, arena)
+                    rx[k], py[k] = float(rv), float(pv)
+            return rx, py, "polar_source"
+
+        if any(s.camera for s in hero.definition.sensors) and len(self.sim.vehicles) > 1:
+            rx = np.zeros(n, dtype=float)
+            py = np.zeros(n, dtype=float)
+            for k, (sim_i, peer) in enumerate(zip(focal_indices, focal_vehicles)):
+                t_info = self._primary_target_vehicle_for(sim_i, peer)
+                if t_info is not None:
+                    rv, pv = _polar_coords(peer.x, peer.y, peer.heading, (t_info[2].x, t_info[2].y), arena)
+                    rx[k], py[k] = float(rv), float(pv)
+            return rx, py, "polar_target"
+
+        zx = np.zeros(n, dtype=float)
+        zy = np.zeros(n, dtype=float)
+        for k, peer in enumerate(focal_vehicles):
+            zr, zi, *_ = _ring_order_parameter(peer)
+            zx[k], zy[k] = float(zr), float(zi)
+        return zx, zy, "mandala"
+
+    def _get_live_shannon_snapshot(self) -> dict | None:
+        """Compute or retrieve the current step's Shannon ensemble snapshot for `focal_vehicles`."""
+        focal_indices, focal_vehicles, hero_index = self._focal_group()
+        if len(focal_vehicles) < 2 or compute_shannon_snapshot is None:
+            return None
+        hero = focal_vehicles[hero_index]
+        species_key = (hero.definition.general.type, hero.definition.general.name)
+        snap_key = (species_key, round(self.sim.time, 6), hero_index, len(focal_vehicles))
+        if self._shannon_snap is not None and self._shannon_snap_key == snap_key:
+            return self._shannon_snap
+
+        if self._shannon_species_key != species_key:
+            prev_snap = None
+            self._prev_shannon_snap = None
+        elif abs(self.sim.time - self._shannon_snap_time) > 1e-9:
+            prev_snap = self._shannon_snap
+            self._prev_shannon_snap = prev_snap
+        else:
+            prev_snap = self._prev_shannon_snap
+
+        px_arr, py_arr, _ = self._focal_phase_coords(focal_indices, focal_vehicles, hero)
+        snap = compute_shannon_snapshot(
+            focal_vehicles,
+            prev_snapshot=prev_snap,
+            phase_coords=(px_arr, py_arr),
+            hero_index=hero_index,
+            max_codewords=len(CODEWORD_PALETTE),
+            barcode_bins=20,
+        )
+        self._shannon_snap = snap
+        self._shannon_snap_key = snap_key
+        self._shannon_species_key = species_key
+        self._shannon_snap_time = self.sim.time
+        return snap
 
     # --- drawing ---
 
@@ -332,7 +483,16 @@ class Renderer:
                     pygame.draw.line(surface, color, self.to_screen(x0, y0), self.to_screen(x1, y1), 2)
             return
 
-        # Mode 3: luminous velocity + turn-curvature colored comet trails.
+        # Mode 3: luminous comet trails (hue-locked to Shannon codeword for focal ensembles).
+        focal_indices, focal_vehicles, _ = self._focal_group()
+        snap = self._get_live_shannon_snapshot() if len(focal_vehicles) >= 2 else None
+        cw_by_sim: dict[int, tuple[int, int, int]] = {}
+        if snap is not None and "vehicle_codeword_ids" in snap:
+            cw_ids = snap["vehicle_codeword_ids"]
+            for fi, sim_i in enumerate(focal_indices):
+                cw_by_sim[sim_i] = codeword_color(int(cw_ids[fi]))
+        focal_set = set(focal_indices)
+
         prev_clip = surface.get_clip()
         surface.set_clip((0, 0, *self.size))
         glow_layer = pygame.Surface(self.size, pygame.SRCALPHA)
@@ -345,21 +505,30 @@ class Renderer:
             v_ref = max((a.max_speed for a in v.definition.actuators), default=5.0)
             v_ref = max(v_ref, 1e-3)
             is_sel = idx == self.selected
+            is_env = bool(focal_set) and (idx not in focal_set)
+            cw_col = cw_by_sim.get(idx)
             for k in range(1, n):
                 (x0, y0), (x1, y1) = points[k - 1], points[k]
                 if abs(x1 - x0) > arena.width / 2 or abs(y1 - y0) > arena.height / 2:
                     continue
-                spd, omg = kins[k] if k < len(kins) else (v.speed, v.turn_rate)
-                s_norm = min(max(spd / v_ref, 0.0), 1.0)
-                c_norm = min(abs(omg) / 1.8, 1.0)
-                base_col = lerp_color(FLOW_ATTRACT, FLOW_ORBIT, s_norm)
-                seg_col = lerp_color(base_col, FLOW_REPEL, 0.72 * c_norm)
+                if is_env:
+                    seg_col = (135, 145, 168)
+                elif cw_col is not None:
+                    spd, _ = kins[k] if k < len(kins) else (v.speed, v.turn_rate)
+                    s_norm = min(max(spd / v_ref, 0.0), 1.0)
+                    seg_col = lerp_color(cw_col, (255, 255, 255), 0.18 * s_norm)
+                else:
+                    spd, omg = kins[k] if k < len(kins) else (v.speed, v.turn_rate)
+                    s_norm = min(max(spd / v_ref, 0.0), 1.0)
+                    c_norm = min(abs(omg) / 1.8, 1.0)
+                    base_col = lerp_color(FLOW_ATTRACT, FLOW_ORBIT, s_norm)
+                    seg_col = lerp_color(base_col, FLOW_REPEL, 0.72 * c_norm)
                 fade = (k / n) ** 1.35
                 p0, p1 = self.to_screen(x0, y0), self.to_screen(x1, y1)
                 if is_sel and k > n - 90:
-                    halo_a = int(85 * fade)
-                    pygame.draw.line(glow_layer, (*seg_col, halo_a), p0, p1, 6)
-                core_col = lerp_color(BACKGROUND, seg_col, 0.22 + 0.78 * fade)
+                    halo_a = int(95 * fade)
+                    pygame.draw.line(glow_layer, (*SELECTED_RING, halo_a), p0, p1, 6)
+                core_col = lerp_color(BACKGROUND, seg_col, (0.16 if is_env else 0.24) + 0.76 * fade)
                 pygame.draw.line(surface, core_col, p0, p1, 3 if (is_sel and k > n - 35) else 2)
         surface.blit(glow_layer, (0, 0))
         surface.set_clip(prev_clip)
@@ -389,7 +558,22 @@ class Renderer:
                 pygame.draw.circle(surface, color, center, radius + 3, 2 if shown else 1)
 
     def draw_vehicles(self, surface: pygame.Surface) -> None:
-        for v in self.sim.vehicles:
+        cw_by_sim: dict[int, tuple[int, int, int]] = {}
+        if self.dynamics_mode >= 2 and self.sim.vehicles:
+            focal_indices, focal_vehicles, _ = self._focal_group()
+            snap = self._get_live_shannon_snapshot() if len(focal_vehicles) >= 2 else None
+            if snap is not None and "vehicle_codeword_ids" in snap:
+                cw_ids = snap["vehicle_codeword_ids"]
+                for fi, sim_i in enumerate(focal_indices):
+                    cw_by_sim[sim_i] = codeword_color(int(cw_ids[fi]))
+
+        for idx, v in enumerate(self.sim.vehicles):
+            if idx in cw_by_sim:
+                reach_p = max(math.hypot(v.half_width, v.half_length) * self.scale, MIN_VEHICLE)
+                sx_v, sy_v = self.to_screen(v.x, v.y)
+                pygame.draw.circle(
+                    surface, cw_by_sim[idx], (round(sx_v), round(sy_v)), round(reach_p + 3), 2
+                )
             # The body's rectangle to scale, enlarged so that a small vehicle is still visible.
             grow = max(1.0, MIN_VEHICLE / (max(v.half_width, v.half_length) * self.scale))
             corner = lambda bx, by: self.to_screen(*v.body_to_world(bx * grow, by * grow))
@@ -428,8 +612,12 @@ class Renderer:
                      if any(s.schedule for s in st.sources)]
         if scheduled:
             lines.append("   ".join(f"{name} {'on' if on else 'off'}" for name, on in scheduled))
-        lines += ["space pause  Right step  R reset  T trail  V views  D dynamics  +/- speed",
-                  "Tab stimulus  drag source  click vehicle"]
+        keys_line = (
+            "space pause  Right step  R reset  T trail  V views  D dynamics  N neural  +/- speed"
+            if self.dynamics_mode > 0
+            else "space pause  Right step  R reset  T trail  V views  D dynamics  +/- speed"
+        )
+        lines += [keys_line, "Tab stimulus  drag source  click vehicle"]
         # Over a tall arena, in its top corner; below a short one, so it hides nothing.
         y = 6 if self.size[1] >= MIN_WINDOW_HEIGHT else self.size[1] + 10
         for line in lines:
@@ -438,7 +626,12 @@ class Renderer:
             y += text.get_height() + 2
 
         if self.dynamics_mode > 0:
+            _, focal_vehicles, _ = self._focal_group()
             label = f"Dynamics: {DYNAMICS_MODES[self.dynamics_mode]} [D]"
+            if self.dynamics_mode >= 2:
+                label += f"  ·  View: {self.neural_view} [N]"
+            if focal_vehicles:
+                label += f"  ·  N={len(focal_vehicles)}"
             txt = self.small_font.render(label, True, TEXT)
             bw, bh = txt.get_width() + 28, txt.get_height() + 10
             badge = pygame.Surface((bw + 4, bh + 4), pygame.SRCALPHA)
@@ -535,8 +728,7 @@ class Renderer:
         surface.set_clip((0, 0, *self.size))
 
         if not sensed_sources and not has_surfaces:
-            # Sensorless or dark-field vehicle (e.g. Vehicle 12 Daydreamer):
-            # draw subtle geometric reticle + live instantaneous osculating curvature circle!
+            # Sensorless or camera-target vehicle (e.g. Vehicle 12 Daydreamer or Vehicle 9 Shy):
             self._draw_autonomous_curvature_overlay(surface, v)
             surface.set_clip(prev_clip)
             return
@@ -553,11 +745,34 @@ class Renderer:
     def _draw_autonomous_curvature_overlay(self, surface: pygame.Surface, v) -> None:
         overlay = pygame.Surface(self.size, pygame.SRCALPHA)
         vx, vy = self.to_screen(v.x, v.y)
-        # Subtle polar reticle centered in arena.
-        cx, cy = self.size[0] / 2, self.size[1] / 2
-        for frac in (0.22, 0.42):
-            r_px = min(self.size) * frac
-            pygame.draw.circle(overlay, (56, 90, 150, 32), (round(cx), round(cy)), round(r_px), 1)
+        cams = v.cameras()
+        if cams:
+            # Camera-equipped vehicle (e.g. Vehicle 9 Shy): draw live detection wedge & symmetry axis.
+            arena = self.sim.world.arena
+            for sensor, cx_w, cy_w in cams:
+                reach_px = min(sensor.camera.range, max(arena.width, arena.height)) * self.scale
+                csx, csy = self.to_screen(cx_w, cy_w)
+                a_mid = v.heading + math.radians(sensor.camera.direction)
+                half_fov = math.radians(sensor.field_of_view * 0.5)
+                pts = [(csx, csy)]
+                for k in range(19):
+                    ak = a_mid - half_fov + (2.0 * half_fov) * (k / 18)
+                    pts.append((csx + reach_px * math.cos(ak), csy - reach_px * math.sin(ak)))
+                pygame.draw.polygon(overlay, (*FLOW_ATTRACT, 26), pts)
+                pygame.draw.aalines(overlay, (*FLOW_ATTRACT, 130), True, pts)
+                # Mirror-symmetry trigger axis (psi = 0)
+                sym_end = (csx + reach_px * math.cos(a_mid), csy - reach_px * math.sin(a_mid))
+                draw_dashed_line(overlay, (*FLOW_ORBIT, 175), (csx, csy), sym_end, 1, dash=5)
+            tgt = self._primary_target_vehicle_for(self.selected, v)
+            if tgt is not None:
+                tsx, tsy = self.to_screen(tgt[2].x, tgt[2].y)
+                _draw_glow_dashed_circle(overlay, (tsx, tsy), 18.0, FLOW_REPEL, dash_deg=15)
+        else:
+            # Subtle polar reticle centered in arena for autonomous ring vehicles.
+            cx, cy = self.size[0] / 2, self.size[1] / 2
+            for frac in (0.22, 0.42):
+                r_px = min(self.size) * frac
+                pygame.draw.circle(overlay, (56, 90, 150, 32), (round(cx), round(cy)), round(r_px), 1)
 
         # Live osculating circle of curvature R = v / |omega| when turning, or heading ray when straight.
         if v.speed > 0.05:
@@ -867,6 +1082,8 @@ class Renderer:
         all_sources = self._all_sensed_sources(v, active_only=False)
         if all_sources:
             self._draw_polar_phase_card(card, 3, 3, card_w, card_h, v)
+        elif any(s.camera for s in v.definition.sensors) and len(self.sim.vehicles) > 1:
+            self._draw_target_polar_phase_card(card, 3, 3, card_w, card_h, v)
         else:
             self._draw_neural_mandala_card(card, 3, 3, card_w, card_h, v)
 
@@ -933,6 +1150,15 @@ class Renderer:
         card.blit(leg_psi, (mid_x, py0 + ph + 2))
         card.blit(leg_r, (mid_x + leg_psi.get_width() + 10, py0 + ph + 2))
 
+        _, focal_vehicles, hero_idx = self._focal_group()
+        snap = self._get_live_shannon_snapshot() if len(focal_vehicles) >= 2 else None
+        cw_ids = snap.get("vehicle_codeword_ids") if snap is not None else None
+        hero_col = (
+            codeword_color(int(cw_ids[hero_idx]))
+            if cw_ids is not None and hero_idx < len(cw_ids)
+            else FLOW_ORBIT
+        )
+
         # Live velocity/state-colored comet trail on (r, psi), skipping cylindrical +/-pi wraps.
         hist = list(self.phase_history[self.selected])
         v_ref = max((a.max_speed for a in v.definition.actuators), default=5.0)
@@ -946,7 +1172,9 @@ class Renderer:
             if tag0 != tag1 or abs(p1 - p0) > 1.65 or abs(r1 - r0) > 0.25 * r_max:
                 continue
             fade = (k / n) ** 1.5
-            if v.learning_inputs:
+            if cw_ids is not None:
+                col = lerp_color(FLOW_ATTRACT, hero_col, 0.35 + 0.65 * fade)
+            elif v.learning_inputs:
                 col = lerp_color(FLOW_ATTRACT, PHASE_EMERALD if mw1 > ACTIVE_STRENGTH else FLOW_ORBIT,
                                  min(mw1, 1.0))
             elif v.energy is not None:
@@ -958,15 +1186,147 @@ class Renderer:
                 pygame.draw.line(card, (*col, int(70 * fade)), pt0, pt1, 5)
             pygame.draw.line(card, (*col, int(55 + 195 * fade)), pt0, pt1, 2)
 
-        # Live glowing comet head at current (r_now, psi_now).
+        # Plot homogeneous focal peer ensemble hue-locked to live Shannon Codeword Hue!
+        if len(focal_vehicles) >= 2:
+            for fi, peer in enumerate(focal_vehicles):
+                if fi == hero_idx:
+                    continue
+                p_src = self._primary_source_for(peer)
+                if p_src is None:
+                    continue
+                rp, pp = _polar_coords(peer.x, peer.y, peer.heading, p_src[2].position, arena)
+                px_i, py_i = to_plot(float(rp), float(pp))
+                p_col = codeword_color(int(cw_ids[fi])) if cw_ids is not None else FLOW_ATTRACT
+                pygame.draw.circle(card, (*p_col, 80), (round(px_i), round(py_i)), 6)
+                pygame.draw.circle(card, p_col, (round(px_i), round(py_i)), 3)
+
+        # Hero comet head + signature cyan selection target ring!
         hx, hy = to_plot(r_now, psi_now)
-        pygame.draw.circle(card, (*FLOW_ORBIT, 85), (round(hx), round(hy)), 8)
-        pygame.draw.circle(card, FLOW_ORBIT, (round(hx), round(hy)), 4)
+        pygame.draw.circle(card, (*hero_col, 95), (round(hx), round(hy)), 9)
+        pygame.draw.circle(card, hero_col, (round(hx), round(hy)), 4)
         pygame.draw.circle(card, (255, 255, 255), (round(hx), round(hy)), 2)
+        if len(focal_vehicles) >= 2:
+            pygame.draw.circle(card, SELECTED_RING, (round(hx), round(hy)), 8, 2)
         card.set_clip(prev_clip)
 
         if has_gauge:
             self._draw_secondary_gauge(card, ox + 10, py0 + ph + 15, cw - 20, gauge_h - 4, v, hist)
+
+    def _draw_target_polar_phase_card(
+        self, card: pygame.Surface, ox: int, oy: int, cw: int, ch: int, v
+    ) -> None:
+        """Target-relative symmetry space `(r_target, psi_bearing)` for camera vehicles (Vehicle 9 Shy)."""
+        arena = self.sim.world.arena
+        tgt_info = self._primary_target_vehicle_for(self.selected, v)
+        if tgt_info is not None:
+            r_now, psi_now = _polar_coords(v.x, v.y, v.heading, (tgt_info[2].x, tgt_info[2].y), arena)
+            r_now, psi_now = float(r_now), float(psi_now)
+        else:
+            r_now, psi_now = 0.0, 0.0
+
+        title = self.small_font.render("TARGET PHASE  (r, ψ)", True, FLOW_ATTRACT)
+        readout = self.tiny_font.render(
+            f"r={r_now:.1f}  ψ={math.degrees(psi_now):+.0f}°", True, TEXT
+        )
+        card.blit(title, (ox + 9, oy + 6))
+        card.blit(readout, (ox + cw - readout.get_width() - 9, oy + 7))
+
+        px0, py0 = ox + 30, oy + 31
+        pw, ph = cw - 40, ch - 46
+        r_max = max(45.0, round(0.55 * math.hypot(arena.width, arena.height), 1))
+
+        pygame.draw.rect(card, HUD_PLOT_BG, (px0, py0, pw, ph), border_radius=5)
+
+        def to_plot(rv: float, psiv: float) -> tuple[float, float]:
+            u = min(max(rv / r_max, 0.0), 1.0)
+            w = (psiv + math.pi) / (2.0 * math.pi)
+            return px0 + u * pw, py0 + (1.0 - w) * ph
+
+        for frac in (0.25, 0.5, 0.75):
+            gx_p = px0 + round(frac * pw)
+            pygame.draw.line(card, HUD_GRID_LINE, (gx_p, py0), (gx_p, py0 + ph), 1)
+
+        # Camera FOV cone & range boundaries (e.g. range=30, FOV=+-30 deg on Vehicle 9 Shy).
+        cam_sensor = next((s for s in v.definition.sensors if s.camera), None)
+        if cam_sensor is not None:
+            r_cam = float(cam_sensor.camera.range)
+            half_fov = math.radians(cam_sensor.field_of_view * 0.5)
+            cx_r, _ = to_plot(r_cam, 0.0)
+            _, y_top = to_plot(0.0, half_fov)
+            _, y_bot = to_plot(0.0, -half_fov)
+            fov_rect = pygame.Rect(
+                px0, round(min(y_top, y_bot)),
+                max(2, round(cx_r - px0)), max(2, round(abs(y_bot - y_top)))
+            )
+            pygame.draw.rect(card, (*FLOW_ATTRACT, 24), fov_rect)
+            if r_cam < r_max:
+                draw_dashed_line(card, (*FLOW_ORBIT, 170), (cx_r, py0), (cx_r, py0 + ph), 1, dash=4)
+            draw_dashed_line(card, (*FLOW_ATTRACT, 135), (px0, y_top), (cx_r, y_top), 1, dash=4)
+            draw_dashed_line(card, (*FLOW_ATTRACT, 135), (px0, y_bot), (cx_r, y_bot), 1, dash=4)
+
+        # Head-on symmetry trigger axis psi = 0
+        _, y_zero = to_plot(0.0, 0.0)
+        draw_dashed_line(card, (*FLOW_REPEL, 185), (px0, y_zero), (px0 + pw, y_zero), 1, dash=4)
+        pygame.draw.rect(card, (75, 110, 170, 130), (px0, py0, pw, ph), 1, border_radius=5)
+
+        for val, lbl_str in ((math.pi, "+π"), (0.0, "0"), (-math.pi, "-π")):
+            _, ty = to_plot(0.0, val)
+            lbl = self.tiny_font.render(lbl_str, True, PANEL_DIM)
+            card.blit(lbl, (px0 - lbl.get_width() - 4, round(ty - lbl.get_height() / 2)))
+        card.blit(self.tiny_font.render("0", True, PANEL_DIM), (px0, py0 + ph + 2))
+        rm_lbl = self.tiny_font.render(f"r={r_max:.0f}", True, PANEL_DIM)
+        card.blit(rm_lbl, (px0 + pw - rm_lbl.get_width(), py0 + ph + 2))
+        sym_lbl = self.tiny_font.render("ψ=0 sym", True, FLOW_REPEL)
+        fov_lbl = self.tiny_font.render("FOV", True, FLOW_ATTRACT)
+        mid_x = px0 + pw // 2 - (sym_lbl.get_width() + fov_lbl.get_width() + 10) // 2
+        card.blit(sym_lbl, (mid_x, py0 + ph + 2))
+        card.blit(fov_lbl, (mid_x + sym_lbl.get_width() + 10, py0 + ph + 2))
+
+        focal_indices, focal_vehicles, hero_idx = self._focal_group()
+        snap = self._get_live_shannon_snapshot() if len(focal_vehicles) >= 2 else None
+        cw_ids = snap.get("vehicle_codeword_ids") if snap is not None else None
+        hero_col = (
+            codeword_color(int(cw_ids[hero_idx]))
+            if cw_ids is not None and hero_idx < len(cw_ids)
+            else FLOW_ORBIT
+        )
+
+        prev_clip = card.get_clip()
+        card.set_clip((px0, py0, pw, ph))
+        hist = list(self.phase_history[self.selected])
+        n = len(hist)
+        for k in range(1, n):
+            r0, p0, tag0, *_ = hist[k - 1]
+            r1, p1, tag1, *_ = hist[k]
+            if tag0 is None or tag0 != tag1 or abs(p1 - p0) > 1.65 or abs(r1 - r0) > 0.25 * r_max:
+                continue
+            fade = (k / n) ** 1.5
+            col = lerp_color(FLOW_ATTRACT, hero_col, 0.30 + 0.70 * fade)
+            pt0, pt1 = to_plot(r0, p0), to_plot(r1, p1)
+            if k > n - 55:
+                pygame.draw.line(card, (*col, int(65 * fade)), pt0, pt1, 5)
+            pygame.draw.line(card, (*col, int(55 + 190 * fade)), pt0, pt1, 2)
+
+        # Plot ONLY focal species peers (environmental Chasers/Walkers strictly excluded!).
+        if len(focal_vehicles) >= 2:
+            for fi, (sim_i, peer) in enumerate(zip(focal_indices, focal_vehicles)):
+                if fi == hero_idx:
+                    continue
+                tp = self._primary_target_vehicle_for(sim_i, peer)
+                if tp is None:
+                    continue
+                rp, pp = _polar_coords(peer.x, peer.y, peer.heading, (tp[2].x, tp[2].y), arena)
+                px_i, py_i = to_plot(float(rp), float(pp))
+                p_col = codeword_color(int(cw_ids[fi])) if cw_ids is not None else FLOW_ATTRACT
+                pygame.draw.circle(card, (*p_col, 85), (round(px_i), round(py_i)), 6)
+                pygame.draw.circle(card, p_col, (round(px_i), round(py_i)), 3)
+
+        hx, hy = to_plot(r_now, psi_now)
+        pygame.draw.circle(card, (*hero_col, 95), (round(hx), round(hy)), 9)
+        pygame.draw.circle(card, hero_col, (round(hx), round(hy)), 4)
+        pygame.draw.circle(card, (255, 255, 255), (round(hx), round(hy)), 2)
+        pygame.draw.circle(card, SELECTED_RING, (round(hx), round(hy)), 8, 2)
+        card.set_clip(prev_clip)
 
     def _build_polar_phase_bg(
         self, v, stim_name: str, src, pw: int, ph: int, r_max: float
@@ -1107,10 +1467,24 @@ class Renderer:
         by = gy + 4
         bh = 10
         pygame.draw.rect(card, HUD_PLOT_BG, (bx, by, bw, bh), border_radius=4)
-        fill_w = round(bw * efrac)
-        if fill_w > 0:
-            col = lerp_color(FLOW_REPEL, PHASE_EMERALD, efrac)
-            pygame.draw.rect(card, (*col, 220), (bx, by, fill_w, bh), border_radius=4)
+        _, focal_vehicles, hero_idx = self._focal_group()
+        snap = self._get_live_shannon_snapshot() if len(focal_vehicles) >= 2 else None
+        cw_ids = snap.get("vehicle_codeword_ids") if snap is not None else None
+        if len(focal_vehicles) >= 2:
+            for fi, peer in enumerate(focal_vehicles):
+                if peer.energy is None:
+                    continue
+                pf = min(max(peer.energy / emax, 0.0), 1.0)
+                px_e = bx + 1 + round((bw - 3) * pf)
+                pcol = codeword_color(int(cw_ids[fi])) if cw_ids is not None else PHASE_EMERALD
+                pygame.draw.line(card, (*pcol, 175), (px_e, by + 1), (px_e, by + bh - 2), 2)
+            hx_e = bx + 1 + round((bw - 3) * efrac)
+            pygame.draw.line(card, SELECTED_RING, (hx_e, by - 2), (hx_e, by + bh + 2), 2)
+        else:
+            fill_w = round(bw * efrac)
+            if fill_w > 0:
+                col = lerp_color(FLOW_REPEL, PHASE_EMERALD, efrac)
+                pygame.draw.rect(card, (*col, 220), (bx, by, fill_w, bh), border_radius=4)
         # Mark energy latch thresholds (e.g., 30 hungry / 90 charged on Forager).
         for u in v.definition.units:
             for c in u.inputs:
@@ -1136,10 +1510,22 @@ class Renderer:
         by = gy + 4
         bh = 10
         pygame.draw.rect(card, HUD_PLOT_BG, (bx, by, bw, bh), border_radius=4)
-        fill_w = round(bw * min(max(max_w, 0.0), 1.0))
-        if fill_w > 0:
-            pygame.draw.rect(card, (*(PHASE_EMERALD if active else (55, 145, 130)), 225),
-                             (bx, by, fill_w, bh), border_radius=4)
+        _, focal_vehicles, _ = self._focal_group()
+        snap = self._get_live_shannon_snapshot() if len(focal_vehicles) >= 2 else None
+        cw_ids = snap.get("vehicle_codeword_ids") if snap is not None else None
+        if len(focal_vehicles) >= 2:
+            for fi, peer in enumerate(focal_vehicles):
+                pw_max = min(max(max(peer.strengths.values(), default=0.0), 0.0), 1.0)
+                px_w = bx + 1 + round((bw - 3) * pw_max)
+                pcol = codeword_color(int(cw_ids[fi])) if cw_ids is not None else col
+                pygame.draw.line(card, (*pcol, 185), (px_w, by + 1), (px_w, by + bh - 2), 2)
+            hx_w = bx + 1 + round((bw - 3) * min(max(max_w, 0.0), 1.0))
+            pygame.draw.line(card, SELECTED_RING, (hx_w, by - 2), (hx_w, by + bh + 2), 2)
+        else:
+            fill_w = round(bw * min(max(max_w, 0.0), 1.0))
+            if fill_w > 0:
+                pygame.draw.rect(card, (*(PHASE_EMERALD if active else (55, 145, 130)), 225),
+                                 (bx, by, fill_w, bh), border_radius=4)
         # Critical synaptic bifurcation threshold wc = 0.7!
         tx = bx + round(bw * STRENGTH_TICK)
         pygame.draw.line(card, FLOW_ORBIT, (tx, by - 3), (tx, by + bh + 3), 2)
@@ -1159,6 +1545,15 @@ class Renderer:
         readout = self.tiny_font.render(f"|Z|={z_mag:.2f}  Φ={z_ang:+.0f}°", True, TEXT)
         card.blit(title, (ox + 9, oy + 6))
         card.blit(readout, (ox + cw - readout.get_width() - 9, oy + 7))
+
+        _, focal_vehicles, hero_idx = self._focal_group()
+        snap = self._get_live_shannon_snapshot() if len(focal_vehicles) >= 2 else None
+        cw_ids = snap.get("vehicle_codeword_ids") if snap is not None else None
+        hero_col = (
+            codeword_color(int(cw_ids[hero_idx]))
+            if cw_ids is not None and hero_idx < len(cw_ids)
+            else PHASE_VIOLET
+        )
 
         # Left subpanel: unit-disc neural mandala & complex order parameter Z(t).
         disc_w = round(cw * 0.50)
@@ -1188,10 +1583,10 @@ class Renderer:
             zr1, zi1 = hist[k][7], hist[k][8]
             fade = (k / nh) ** 1.6
             p0, p1 = z_to_px(zr0, zi0), z_to_px(zr1, zi1)
-            col = lerp_color(FLOW_ATTRACT, PHASE_VIOLET, fade)
+            col = lerp_color(FLOW_ATTRACT, hero_col, fade)
             pygame.draw.line(card, (*col, int(45 + 185 * fade)), p0, p1, 2)
 
-        # Draw ring neurons around outer rim + excitatory chord arcs between active ideas.
+        # Draw ring neurons around outer rim.
         n_ring = len(ring_units)
         if n_ring > 0:
             node_pts = []
@@ -1208,10 +1603,24 @@ class Renderer:
                     pygame.draw.circle(card, (65, 80, 125, 190), (round(nx), round(ny)), 3)
                     pygame.draw.circle(card, (125, 145, 195, 180), (round(nx), round(ny)), 3, 1)
 
+        # Plot focal peer Z_i(t) order parameters hue-locked to Shannon Codeword Hue!
+        if len(focal_vehicles) >= 2:
+            for fi, peer in enumerate(focal_vehicles):
+                if fi == hero_idx:
+                    continue
+                p_zr, p_zi, *_ = _ring_order_parameter(peer)
+                px_z, py_z = z_to_px(p_zr, p_zi)
+                p_col = codeword_color(int(cw_ids[fi])) if cw_ids is not None else FLOW_ATTRACT
+                pygame.draw.circle(card, (*p_col, 80), (round(px_z), round(py_z)), 5)
+                pygame.draw.circle(card, p_col, (round(px_z), round(py_z)), 3)
+
         zx, zy = z_to_px(z_re, z_im)
-        pygame.draw.line(card, (*PHASE_VIOLET, 190), (mcx, mcy), (zx, zy), 2)
-        pygame.draw.circle(card, (*PHASE_VIOLET, 95), (round(zx), round(zy)), 7)
-        pygame.draw.circle(card, (255, 255, 255), (round(zx), round(zy)), 3)
+        pygame.draw.line(card, (*hero_col, 190), (mcx, mcy), (zx, zy), 2)
+        pygame.draw.circle(card, (*hero_col, 95), (round(zx), round(zy)), 8)
+        pygame.draw.circle(card, hero_col, (round(zx), round(zy)), 4)
+        pygame.draw.circle(card, (255, 255, 255), (round(zx), round(zy)), 2)
+        if len(focal_vehicles) >= 2:
+            pygame.draw.circle(card, SELECTED_RING, (round(zx), round(zy)), 7, 2)
 
         cap = self.tiny_font.render(f"ring active: {active_sum:g}/{max(n_ring, 1)}", True, PANEL_DIM)
         card.blit(cap, (mcx - cap.get_width() // 2, mcy + rad + 5))
@@ -1231,7 +1640,11 @@ class Renderer:
 
         v_max = max((a.max_speed for a in v.definition.actuators), default=4.0)
         v_max = max(v_max, 1.0)
-        omg_max = max(max((abs(h[4]) for h in hist), default=0.8), 0.8)
+        omg_max = max(
+            max((abs(h[4]) for h in hist), default=0.8),
+            max((abs(peer.turn_rate) for peer in focal_vehicles), default=0.8),
+            0.8,
+        )
 
         def vw_to_px(sv: float, ov: float) -> tuple[float, float]:
             u = min(max(sv / v_max, 0.0), 1.0)
@@ -1242,13 +1655,26 @@ class Renderer:
             s0, o0 = hist[k - 1][3], hist[k - 1][4]
             s1, o1 = hist[k][3], hist[k][4]
             fade = (k / nh) ** 1.5
-            col = lerp_color(FLOW_ATTRACT, FLOW_ORBIT, min(abs(o1) / omg_max, 1.0))
+            col = lerp_color(FLOW_ATTRACT, hero_col if cw_ids is not None else FLOW_ORBIT,
+                             min(abs(o1) / omg_max, 1.0))
             pygame.draw.line(card, (*col, int(50 + 185 * fade)),
                              vw_to_px(s0, o0), vw_to_px(s1, o1), 2)
 
+        if len(focal_vehicles) >= 2:
+            for fi, peer in enumerate(focal_vehicles):
+                if fi == hero_idx:
+                    continue
+                px_k, py_k = vw_to_px(peer.speed, peer.turn_rate)
+                p_col = codeword_color(int(cw_ids[fi])) if cw_ids is not None else FLOW_ATTRACT
+                pygame.draw.circle(card, (*p_col, 80), (round(px_k), round(py_k)), 5)
+                pygame.draw.circle(card, p_col, (round(px_k), round(py_k)), 3)
+
         kx, ky = vw_to_px(v.speed, v.turn_rate)
-        pygame.draw.circle(card, (*FLOW_ORBIT, 90), (round(kx), round(ky)), 6)
-        pygame.draw.circle(card, FLOW_ORBIT, (round(kx), round(ky)), 3)
+        k_col = hero_col if cw_ids is not None else FLOW_ORBIT
+        pygame.draw.circle(card, (*k_col, 90), (round(kx), round(ky)), 6)
+        pygame.draw.circle(card, k_col, (round(kx), round(ky)), 3)
+        if len(focal_vehicles) >= 2:
+            pygame.draw.circle(card, SELECTED_RING, (round(kx), round(ky)), 7, 2)
 
         vw_lbl = self.tiny_font.render("(v, ω) trace", True, FLOW_ATTRACT)
         card.blit(vw_lbl, (rx0 + (rw - vw_lbl.get_width()) // 2, ry0 + rh + 2))
@@ -1272,6 +1698,13 @@ class Renderer:
                          (x0, 16))
             return
         diagram = self.sim.vehicles[self.selected].diagram()
+        if self.dynamics_mode >= 2:
+            _, focal_vehicles, hero_idx = self._focal_group()
+            snap = self._get_live_shannon_snapshot() if len(focal_vehicles) >= 2 else None
+            if len(focal_vehicles) >= 2 and snap is not None:
+                self._draw_shannon_panel(surface, diagram, focal_vehicles, hero_idx, snap)
+                return
+
         surface.blit(self.title_font.render(diagram.title, True, TEXT), (x0, 14))
         surface.blit(self.font.render(diagram.subtitle, True, PANEL_DIM), (x0, 38))
         # Readouts and vehicle values fill the bottom; the diagram gets the space above them.
@@ -1283,6 +1716,664 @@ class Renderer:
         self.draw_diagram(surface, diagram, center, radius)
         y = self.draw_readouts(surface, diagram, x0, min(readouts_top, center[1] + radius + 24))
         self.draw_params(surface, diagram, x0, y + 8)
+
+    def _draw_shannon_panel(
+        self,
+        surface: pygame.Surface,
+        diagram: Diagram,
+        focal_vehicles: list,
+        hero_idx: int,
+        snap: dict,
+    ) -> None:
+        """Live Hero + Shannon Ensemble Connectome Panel (`PANEL_WIDTH = 420`)."""
+        left, height = self.size[0], self.window_size[1]
+        x0 = left + 16
+        inner_w = PANEL_WIDTH - 32
+
+        cw_ids = snap.get("vehicle_codeword_ids")
+        hero_col = (
+            codeword_color(int(cw_ids[hero_idx]))
+            if cw_ids is not None and hero_idx < len(cw_ids)
+            else FLOW_ORBIT
+        )
+
+        # Header: Hero title with signature cyan selection ring + Homogeneous Ensemble badge.
+        pygame.draw.circle(surface, hero_col, (x0 + 7, 22), 4)
+        pygame.draw.circle(surface, SELECTED_RING, (x0 + 7, 22), 7, 2)
+        title_surf = self.title_font.render(diagram.title, True, TEXT)
+        surface.blit(title_surf, (x0 + 19, 12))
+        sub_surf = self.small_font.render(diagram.subtitle, True, PANEL_DIM)
+        surface.blit(sub_surf, (x0, 35))
+
+        b_line1 = self.tiny_font.render(f"Focal N={len(focal_vehicles)}", True, FLOW_ATTRACT)
+        b_line2 = self.tiny_font.render(f"[N] {self.neural_view}", True, PHASE_EMERALD)
+        pill_w = max(b_line1.get_width(), b_line2.get_width()) + 16
+        pill_h = 34
+        pill_x = left + PANEL_WIDTH - 14 - pill_w
+        pill = pygame.Surface((pill_w, pill_h), pygame.SRCALPHA)
+        pygame.draw.rect(pill, (14, 19, 38, 235), (0, 0, pill_w, pill_h), border_radius=7)
+        pygame.draw.rect(pill, (68, 96, 150, 185), (0, 0, pill_w, pill_h), 1, border_radius=7)
+        pill.blit(b_line1, ((pill_w - b_line1.get_width()) // 2, 4))
+        pill.blit(b_line2, ((pill_w - b_line2.get_width()) // 2, 18))
+        surface.blit(pill, (pill_x, 12))
+
+        learning = [w for w in diagram.wires if w.learning]
+        n_rows = len(diagram.parts) + len(learning)
+        params_h = 34
+        row_h = (
+            18 if n_rows <= 12
+            else 16 if n_rows <= 18
+            else 15 if n_rows <= 24
+            else 14
+        )
+        strip_h = 98 if self.neural_view == "raster" else 72
+        diag_top = 54
+        min_diag_room = 206 if self.neural_view == "raster" else 242
+        diag_room = height - diag_top - params_h - n_rows * row_h - strip_h - 14
+        if diag_room < min_diag_room and row_h > 14:
+            row_h = max(14, row_h - 1)
+            diag_room = height - diag_top - params_h - n_rows * row_h - strip_h - 14
+        if diag_room < min_diag_room and strip_h > 58:
+            strip_h = max(58, strip_h - (min_diag_room - diag_room))
+            diag_room = height - diag_top - params_h - n_rows * row_h - strip_h - 14
+
+        radius = min(MAX_DIAGRAM_RADIUS, (PANEL_WIDTH - 64) / 2, max(80.0, (diag_room - 44) / 2))
+        center = (left + PANEL_WIDTH // 2, round(diag_top + 20 + radius))
+        self._draw_shannon_diagram(surface, diagram, center, radius, snap)
+
+        max_strip_y = height - params_h - n_rows * row_h - strip_h - 6
+        strip_y = min(round(center[1] + radius + 24), max_strip_y)
+        self._draw_shannon_strip(surface, x0, strip_y, inner_w, strip_h, focal_vehicles, hero_idx, snap)
+
+        readouts_y = strip_y + strip_h + 6
+        end_y = self._draw_shannon_readouts(surface, diagram, x0, readouts_y, inner_w, row_h, snap)
+        self._draw_shannon_params(surface, diagram, x0, end_y + 3)
+
+    def _get_shannon_ring_patch(
+        self,
+        arcs: list[tuple[int, float]],
+        entropy_bits: float,
+        r_in: float = 11.8,
+        r_out: float = 15.4,
+    ) -> pygame.Surface:
+        """Build (and cache) a 2x-supersampled antialiased Codebook Arc-Ring + Entropy Halo."""
+        q_arcs = tuple((int(c), round(float(p), 3)) for c, p in arcs if float(p) > 0.004)
+        q_ent = round(min(max(float(entropy_bits), 0.0), 1.0), 2)
+        key = (q_arcs, q_ent, self.neural_view, round(r_in, 1), round(r_out, 1))
+        cached = self._ring_patch_cache.get(key)
+        if cached is not None:
+            return cached
+
+        half = 22
+        ss = 2
+        dim_px = 2 * half * ss
+        cxy = half * ss
+        patch_hi = pygame.Surface((dim_px, dim_px), pygame.SRCALPHA)
+
+        # 1. Outer Marginal Entropy H(A_k) glow (0 bits -> zero halo!).
+        if self.neural_view in ("composite", "entropy") and q_ent > 0.02:
+            ent_col = lerp_color(PHASE_VIOLET, FLOW_ORBIT, q_ent)
+            base_a = 120 if self.neural_view == "entropy" else 68
+            pygame.draw.circle(
+                patch_hi, (*ent_col, int(base_a * 0.45 * q_ent)), (cxy, cxy), round((r_out + 3.4) * ss), 6
+            )
+            pygame.draw.circle(
+                patch_hi, (*ent_col, int(base_a * q_ent)), (cxy, cxy), round((r_out + 1.6) * ss), 3
+            )
+            if self.neural_view == "entropy":
+                _fill_annular_sector(
+                    patch_hi, cxy, cxy, (r_out + 0.8) * ss, (r_out + 2.4) * ss,
+                    math.pi / 2, math.pi / 2 - 2.0 * math.pi * q_ent, (*FLOW_ORBIT, 225)
+                )
+
+        # 2. Quiescent ring track (1 - P(A_k = 1)).
+        _fill_annular_sector(
+            patch_hi, cxy, cxy, r_in * ss, r_out * ss,
+            math.pi / 2, math.pi / 2 - 2.0 * math.pi, (38, 44, 68, 220)
+        )
+
+        # 3. Active Joint Codebook Arc Sectors (sum of spans = 2 * pi * P(A_k = 1)).
+        ang_cur = math.pi / 2
+        multi = len(q_arcs) >= 2
+        for cw_idx, prob in q_arcs:
+            span = 2.0 * math.pi * min(max(prob, 0.0), 1.0)
+            gap = 0.04 if (multi and span > 0.14) else 0.0
+            a0 = ang_cur - 0.5 * gap
+            a1 = ang_cur - span + 0.5 * gap
+            if a0 - a1 > 0.01:
+                col = codeword_color(cw_idx)
+                alpha_arc = 250 if self.neural_view != "entropy" else 180
+                _fill_annular_sector(patch_hi, cxy, cxy, r_in * ss, r_out * ss, a0, a1, (*col, alpha_arc))
+            ang_cur -= span
+
+        patch = pygame.transform.smoothscale(patch_hi, (2 * half, 2 * half))
+        if len(self._ring_patch_cache) > 256:
+            self._ring_patch_cache.clear()
+        self._ring_patch_cache[key] = patch
+        return patch
+
+    def _draw_shannon_diagram(
+        self,
+        surface: pygame.Surface,
+        diagram: Diagram,
+        center: tuple[int, int],
+        radius: float,
+        snap: dict,
+    ) -> None:
+        def at(position):
+            return (center[0] + position[0] * radius * diagram.body[0],
+                    center[1] - position[1] * radius * diagram.body[1])
+
+        bw, bl = diagram.body
+        body = pygame.Rect(0, 0, 2 * radius * bw, 2 * radius * bl)
+        body.center = center
+        pygame.draw.rect(surface, (28, 32, 48), body, border_radius=int(radius * min(bw, bl) * 0.3))
+        pygame.draw.rect(surface, BODY_OUTLINE, body, 2, border_radius=int(radius * min(bw, bl) * 0.3))
+
+        parts = {p.name: p for p in diagram.parts}
+        arcs_map: dict = snap.get("part_codeword_arcs", {}) or {}
+        ent_map: dict = snap.get("part_entropy", {}) or {}
+
+        for p in diagram.parts:
+            if p.kind == "module":
+                self.draw_module(surface, p, at(p.position))
+
+        # Separate parallel / antiparallel wires between the same pair so MI/TE halos stay crisp.
+        bundled = bundles(diagram.wires)
+        pair_counts: dict[frozenset, int] = {}
+        pair_dirs: dict[frozenset, set] = {}
+        for w in bundled:
+            if w.source != w.target:
+                pk = frozenset((w.source, w.target))
+                pair_counts[pk] = pair_counts.get(pk, 0) + 1
+                pair_dirs.setdefault(pk, set()).add((w.source, w.target))
+        pair_seen: dict[frozenset, int] = {}
+
+        glow_rect = body.inflate(64, 64)
+        wire_glow = pygame.Surface((glow_rect.width, glow_rect.height), pygame.SRCALPHA)
+        gx0, gy0 = glow_rect.topleft
+
+        wire_geom = []
+        for w in bundled:
+            a, b = wire_ends(w, parts, at, PANEL_PORT_GAP, PANEL_BOX_HEIGHT)
+            if w.source != w.target:
+                pk = frozenset((w.source, w.target))
+                idx_p = pair_seen[pk] = pair_seen.get(pk, -1) + 1
+                cnt_p = pair_counts[pk]
+                if cnt_p > 1:
+                    dx_w, dy_w = b[0] - a[0], b[1] - a[1]
+                    len_w = math.hypot(dx_w, dy_w) or 1.0
+                    ux_w, uy_w = dx_w / len_w, dy_w / len_w
+                    shift = (idx_p - (cnt_p - 1) / 2.0) * 5.0
+                    if len(pair_dirs[pk]) > 1 and w.source > w.target:
+                        shift = -shift
+                    a = (a[0] - uy_w * shift, a[1] + ux_w * shift)
+                    b = (b[0] - uy_w * shift, b[1] + ux_w * shift)
+            info_bits = _lookup_wire_bits(snap, w)
+            wire_geom.append((w, a, b, info_bits))
+
+            # Draw live Channel MI / Transfer Entropy halo on wire_glow layer.
+            if not w.control and self.neural_view in ("composite", "entropy") and info_bits > 0.015:
+                info_norm = min(info_bits / 0.75, 1.0)
+                halo_col = (
+                    PHASE_EMERALD if w.learning
+                    else FLOW_ATTRACT if w.sign > 0 else FLOW_REPEL
+                )
+                halo_w = round(3 + (6 if self.neural_view == "entropy" else 4.5) * info_norm)
+                halo_a = int((55 if self.neural_view == "entropy" else 38) + 125 * info_norm)
+                if w.source == w.target:
+                    o = -1 if parts[w.target].position[0] < 0 else 1
+                    pygame.draw.circle(
+                        wire_glow, (*halo_col, halo_a),
+                        (round(a[0] - gx0 + o * 12), round(a[1] - gy0 - 12)), 12, min(halo_w, 6)
+                    )
+                else:
+                    pygame.draw.line(
+                        wire_glow, (*halo_col, halo_a),
+                        (a[0] - gx0, a[1] - gy0), (b[0] - gx0, b[1] - gy0), halo_w
+                    )
+
+        surface.blit(wire_glow, (gx0, gy0))
+
+        # Draw Hero wire cores + compact sign badges.
+        for w, a, b, info_bits in wire_geom:
+            if w.control:
+                draw_dashed_line(surface, CONTROL_COLOR, a, b, 1, dash=4)
+                continue
+            if w.learning:
+                dim, on = learning_colors(w)
+                color = lerp_color(dim, on, w.level) if w.active else dim
+                width = 1 + round(3 * w.strength)
+            else:
+                if not w.active:
+                    color, width = WIRE_INACTIVE, 1
+                elif w.level > 0.05:
+                    color = lerp_color(WIRE_OFF, WIRE_ON, w.level)
+                    width = 3
+                elif self.neural_view == "entropy" and info_bits > 0.03:
+                    t_i = min(info_bits / 0.75, 1.0)
+                    color = lerp_color(WIRE_OFF, FLOW_ATTRACT if w.sign > 0 else FLOW_REPEL, 0.75 * t_i)
+                    width = 2
+                else:
+                    color, width = WIRE_OFF, 1
+            if w.source == w.target:
+                o = -1 if parts[w.target].position[0] < 0 else 1
+                pygame.draw.circle(surface, color, (round(a[0] + o * 12), round(a[1] - 12)), 11, min(width, 3))
+                label_at = (a[0] + o * 23 - (8 if o < 0 else 0), a[1] - 24)
+            else:
+                if w.learning and not w.active:
+                    draw_dashed_line(surface, color, a, b, width, dash=5)
+                else:
+                    pygame.draw.line(surface, color, a, b, width)
+                dx_w, dy_w = b[0] - a[0], b[1] - a[1]
+                len_w = math.hypot(dx_w, dy_w) or 1.0
+                ux_w, uy_w = dx_w / len_w, dy_w / len_w
+                label_at = (a[0] + 0.76 * dx_w - uy_w * 7 - 4, a[1] + 0.76 * dy_w + ux_w * 7 - 7)
+            sign = ("+" if w.sign > 0 else "-") + LEARNING_LABELS.get(w.learning, "")
+            if not w.label:
+                s_txt = self.small_font.render(sign, True, color)
+                surface.blit(s_txt, (round(label_at[0]), round(label_at[1])))
+
+        # Draw Parts (Hero inner fill + Shannon Joint Codebook Arc-Rings + Entropy halos).
+        r_core = 11
+        r_ring_in = 12.0
+        r_ring_out = 16.0 if self.neural_view == "codebook" else 15.2
+        part_labels_to_draw: list[tuple[float, float, str]] = []
+
+        for p in diagram.parts:
+            x, y = at(p.position)
+            p_arcs = arcs_map.get(p.name, [])
+            p_ent = float(ent_map.get(p.name, 0.0))
+            fill = (tuple(int(c) for c in heat_colors(np.array(p.level)))
+                    if p.shape is None and p.kind != "module" else None)
+
+            if p.kind == "module":
+                name = self.small_font.render(p.name, True, TEXT, PANEL_BG)
+                surface.blit(name, (x - name.get_width() / 2, y - name.get_height() / 2))
+                continue
+            elif p.kind == "sensor":
+                for dx in (-8, 8):
+                    pygame.draw.line(surface, BODY_OUTLINE, (x, y), (x + dx, y - 19), 2)
+                if p_arcs or p_ent > 0.02:
+                    patch = self._get_shannon_ring_patch(p_arcs, p_ent, r_in=11.5, r_out=14.6)
+                    surface.blit(patch, (round(x - patch.get_width() / 2), round(y - patch.get_height() / 2)))
+                pygame.draw.circle(surface, fill, (round(x), round(y)), 11)
+                pygame.draw.circle(surface, BODY_OUTLINE, (round(x), round(y)), 11, 1)
+                below = 15.0
+            elif p.shape is not None:
+                self._draw_shannon_cells(surface, p, (x, y), GRID_WIDTH * radius, p_arcs, p_ent, snap)
+                below = self.cells_height(p.level, GRID_WIDTH * radius) / 2 + 4.0
+            elif p.kind == "control":
+                patch = self._get_shannon_ring_patch(p_arcs, p_ent, r_in=r_ring_in + 1, r_out=r_ring_out + 1)
+                surface.blit(patch, (round(x - patch.get_width() / 2), round(y - patch.get_height() / 2)))
+                rc = r_core + 1
+                diamond = [(x, y - rc), (x + rc, y), (x, y + rc), (x - rc, y)]
+                pygame.draw.polygon(surface, fill, diamond)
+                pygame.draw.polygon(surface, CONTROL_COLOR, diamond, 2)
+                below = r_ring_out + 3.0
+            elif p.kind == "motor":
+                rect = pygame.Rect(0, 0, 32, 20)
+                rect.center = (round(x), round(y))
+                if p_ent > 0.02 and self.neural_view in ("composite", "entropy"):
+                    ecol = lerp_color(PHASE_VIOLET, FLOW_ORBIT, min(p_ent, 1.0))
+                    glow_m = pygame.Surface((42, 30), pygame.SRCALPHA)
+                    pygame.draw.rect(glow_m, (*ecol, int(90 * min(p_ent, 1.0))), (0, 0, 42, 30), 2, border_radius=6)
+                    surface.blit(glow_m, (rect.x - 5, rect.y - 5))
+                pygame.draw.rect(surface, fill, rect, border_radius=4)
+                if p_arcs:
+                    _draw_segmented_bar(surface, rect.x + 2, rect.bottom - 4, rect.width - 4, 3, p_arcs)
+                pygame.draw.rect(surface, BODY_OUTLINE, rect, 2, border_radius=4)
+                below = 13.0
+            else:
+                patch = self._get_shannon_ring_patch(p_arcs, p_ent, r_in=r_ring_in, r_out=r_ring_out)
+                surface.blit(patch, (round(x - patch.get_width() / 2), round(y - patch.get_height() / 2)))
+                pygame.draw.circle(surface, fill, (round(x), round(y)), r_core)
+                pygame.draw.circle(surface, BODY_OUTLINE, (round(x), round(y)), r_core, 1)
+                if p.threshold is not None:
+                    t_col = VEHICLE_OUTLINE if p.level > 0.5 else TEXT
+                    text = f"{p.effective:.1f}" if p.effective is not None else f"{p.threshold:g}"
+                    font_use = self.tiny_font if len(text) >= 3 else self.small_font
+                    value = font_use.render(text, True, t_col)
+                    surface.blit(value, (round(x - value.get_width() / 2), round(y - value.get_height() / 2)))
+                below = r_ring_out + 2.0
+
+            part_labels_to_draw.append((x, y + below, p.name))
+
+        # Render all part labels on top with pairwise de-collision & dark halo pills!
+        part_centers = [at(p.position) for p in diagram.parts if p.kind != "module"]
+        lbl_items = []
+        for idx_l, (lx, ly, name_str) in enumerate(part_labels_to_draw):
+            lbl = self.tiny_font.render(name_str, True, PANEL_DIM)
+            pw_l, ph_l = lbl.get_width() + 4, lbl.get_height()
+            # If another part circle sits right below this label (e.g. symmetric -> fleeing),
+            # shift label horizontally beside its own unit so it never covers the lower unit's threshold!
+            ox_self, oy_self = part_centers[idx_l]
+            for j_c, (ox_o, oy_o) in enumerate(part_centers):
+                if j_c != idx_l and abs(ox_o - lx) < 13 and 16 <= (oy_o - oy_self) <= 32:
+                    lx = ox_self - (pw_l / 2 + 16)
+                    ly = oy_self - ph_l / 2
+                    break
+            lbl_items.append([lx, ly, pw_l, ph_l, lbl])
+
+        # Iterative horizontal nudge for same-row neighbors (e.g. white_eye & red_eye on Wary Moth).
+        for _ in range(3):
+            for i in range(len(lbl_items)):
+                for j in range(i + 1, len(lbl_items)):
+                    xi, yi, wi, hi, _ = lbl_items[i]
+                    xj, yj, wj, hj, _ = lbl_items[j]
+                    if abs(yi - yj) < max(hi, hj) - 1:
+                        min_sep = 0.5 * (wi + wj) + 3.0
+                        dx_ij = xj - xi
+                        if abs(dx_ij) < min_sep:
+                            push = 0.5 * (min_sep - abs(dx_ij))
+                            sgn = 1.0 if dx_ij >= 0 else -1.0
+                            lbl_items[i][0] -= sgn * push
+                            lbl_items[j][0] += sgn * push
+
+        for lx, ly, pw_l, ph_l, lbl in lbl_items:
+            px_l = round(lx - pw_l / 2)
+            py_l = round(ly)
+            bg_pill = pygame.Surface((pw_l, ph_l), pygame.SRCALPHA)
+            pygame.draw.rect(bg_pill, (22, 24, 34, 215), (0, 0, pw_l, ph_l), border_radius=3)
+            bg_pill.blit(lbl, (2, 0))
+            surface.blit(bg_pill, (px_l, py_l))
+
+    def _draw_shannon_cells(
+        self,
+        surface: pygame.Surface,
+        p,
+        at_pos: tuple[float, float],
+        width: float,
+        p_arcs: list[tuple[int, float]],
+        p_ent: float,
+        snap: dict,
+    ) -> None:
+        """Draw camera/array cells blending Hero state with swarm firing probability / cell entropy."""
+        rows = self.rows_of(p.level)
+        n_r, n_c = len(rows), len(rows[0])
+        cell = min(width / n_c, 8.0)
+        gw_px, gh_px = cell * n_c, cell * n_r
+        x0 = at_pos[0] - gw_px / 2
+        y0 = at_pos[1] - gh_px / 2
+
+        grid_prob = _lookup_part_grid(snap, "grid_prob", p.name, (n_r, n_c))
+        grid_ent = _lookup_part_grid(snap, "grid_entropy", p.name, (n_r, n_c))
+
+        for r, row in enumerate(rows):
+            for c, hero_lvl in enumerate(row):
+                if self.neural_view == "entropy" and grid_ent is not None:
+                    e_cell = min(max(float(grid_ent[r, c]), 0.0), 1.0)
+                    h_col = tuple(int(v) for v in heat_colors(np.array(hero_lvl)))
+                    e_col = lerp_color((14, 18, 42), PHASE_VIOLET if e_cell < 0.65 else FLOW_ORBIT, e_cell)
+                    color = lerp_color(e_col, h_col, 0.45 if hero_lvl > 0 else 0.0)
+                else:
+                    eff = float(hero_lvl)
+                    if grid_prob is not None and eff < float(grid_prob[r, c]):
+                        eff = max(eff, 0.42 * float(grid_prob[r, c]))
+                    color = tuple(int(v) for v in heat_colors(np.array(min(max(eff, 0.0), 1.0))))
+                pygame.draw.rect(
+                    surface, color,
+                    (x0 + c * cell, y0 + r * cell, math.ceil(cell), math.ceil(cell))
+                )
+        border_col = (
+            lerp_color(BODY_OUTLINE, FLOW_ORBIT, min(p_ent, 1.0))
+            if self.neural_view in ("composite", "entropy") and p_ent > 0.05
+            else BODY_OUTLINE
+        )
+        pygame.draw.rect(surface, border_col, (x0, y0, gw_px, gh_px), 1)
+        if p_arcs:
+            _draw_segmented_bar(surface, round(x0), round(y0 - 4), max(8, round(gw_px)), 3, p_arcs)
+
+    def _draw_shannon_strip(
+        self,
+        surface: pygame.Surface,
+        x0: int,
+        y0: int,
+        width: int,
+        height: int,
+        focal_vehicles: list,
+        hero_idx: int,
+        snap: dict,
+    ) -> None:
+        """Compact Shannon Telemetry Header + Lossless Sorted N x M Swarm Microstate Bit-Raster."""
+        card = pygame.Surface((width, height), pygame.SRCALPHA)
+        pygame.draw.rect(card, (13, 17, 32, 245), (0, 0, width, height), border_radius=6)
+        pygame.draw.rect(card, (62, 84, 134, 190), (0, 0, width, height), 1, border_radius=6)
+        pygame.draw.line(card, (48, 66, 110, 150), (4, 18), (width - 4, 18), 1)
+
+        h_w = float(snap.get("joint_entropy_bits", 0.0))
+        h_sum = float(snap.get("marginal_entropy_sum_bits", 0.0))
+        tc = float(snap.get("total_correlation_bits", 0.0))
+        mi_xw = float(snap.get("spatial_mi_bits", 0.0))
+
+        # Top 18px telemetry strip
+        tx = 7
+        t1 = self.tiny_font.render(f"H(W):{h_w:.2f}b", True, FLOW_ATTRACT)
+        card.blit(t1, (tx, 4))
+        tx += t1.get_width() + 9
+        if self.neural_view == "entropy":
+            ts = self.tiny_font.render(f"ΣH:{h_sum:.2f}b", True, TEXT)
+            card.blit(ts, (tx, 4))
+            tx += ts.get_width() + 9
+        t2 = self.tiny_font.render(f"TC:{tc:.2f}b", True, PHASE_VIOLET)
+        card.blit(t2, (tx, 4))
+        tx += t2.get_width() + 9
+        t3 = self.tiny_font.render(f"I(X;W):{mi_xw:.2f}b", True, FLOW_ORBIT)
+        card.blit(t3, (tx, 4))
+
+        mode_tag = self.tiny_font.render(f"[{self.neural_view}]", True, PHASE_EMERALD)
+        if tx + t3.get_width() + 6 < width - mode_tag.get_width() - 6:
+            card.blit(mode_tag, (width - mode_tag.get_width() - 7, 4))
+
+        ry0 = 21
+        raster = np.asarray(snap.get("raster_matrix", np.zeros((len(focal_vehicles), 1))), dtype=float)
+        if raster.ndim == 1:
+            raster = raster[:, None]
+        n_veh, n_units = raster.shape
+        r_cw = np.asarray(snap.get("raster_codeword_ids", np.zeros(n_veh, dtype=int)), dtype=int)
+        hero_row = int(snap.get("hero_sorted_row", 0))
+        unit_names = list(snap.get("raster_unit_names", []))
+
+        # In "codebook" view, show a horizontal Joint Codebook Empirical Mass Bar above the raster!
+        if self.neural_view == "codebook" and n_veh > 0:
+            uniq_c, counts_c = np.unique(r_cw, return_counts=True)
+            order_c = np.argsort(-counts_c)
+            cw_arcs = [(int(uniq_c[i]), float(counts_c[i]) / n_veh) for i in order_c]
+            _draw_segmented_bar(card, 44, ry0, width - 52, 5, cw_arcs)
+            ry0 += 8
+
+        bottom_pad = 13 if (self.neural_view == "raster" and unit_names) else 4
+        rx0 = 44
+        rw = max(40, width - rx0 - 7)
+        rh = max(12, height - ry0 - bottom_pad)
+
+        # Left margin metadata + Hero row pointer
+        dim_lbl = self.tiny_font.render(f"{n_veh}×{n_units}", True, PANEL_DIM)
+        card.blit(dim_lbl, (5, ry0))
+
+        if n_veh > 0 and n_units > 0:
+            for r in range(n_veh):
+                yr0 = ry0 + round(r * rh / n_veh)
+                yr1 = max(yr0 + 1, ry0 + round((r + 1) * rh / n_veh))
+                cw_col = codeword_color(int(r_cw[r])) if r < len(r_cw) else CODEWORD_RESIDUAL
+                # Codeword cluster ribbon at rx0 - 7
+                pygame.draw.rect(card, cw_col, (rx0 - 7, yr0, 5, yr1 - yr0))
+                for c in range(n_units):
+                    xc0 = rx0 + round(c * rw / n_units)
+                    xc1 = max(xc0 + 1, rx0 + round((c + 1) * rw / n_units))
+                    cw_cell = xc1 - xc0
+                    gap_x = 1 if cw_cell >= 5 else 0
+                    bit_on = raster[r, c] > 0.5
+                    cell_col = cw_col if bit_on else (22, 27, 46)
+                    pygame.draw.rect(card, cell_col, (xc0, yr0, max(1, cw_cell - gap_x), yr1 - yr0))
+
+            # Highlight Hero's sorted row cleanly with signature cyan ring & vector pointer!
+            if 0 <= hero_row < n_veh:
+                yh0 = ry0 + round(hero_row * rh / n_veh)
+                yh1 = max(yh0 + 2, ry0 + round((hero_row + 1) * rh / n_veh))
+                pygame.draw.rect(card, SELECTED_RING, (rx0 - 8, yh0 - 1, rw + 9, yh1 - yh0 + 2), 1)
+                h_tag = self.tiny_font.render(f"#{self.selected}", True, SELECTED_RING)
+                hy_txt = max(ry0 + 10, min(ry0 + rh - h_tag.get_height(), (yh0 + yh1 - h_tag.get_height()) // 2))
+                ym_tri = hy_txt + h_tag.get_height() // 2
+                pygame.draw.polygon(
+                    card, SELECTED_RING, [(4, ym_tri - 3), (9, ym_tri), (4, ym_tri + 3)]
+                )
+                card.blit(h_tag, (11, hy_txt))
+
+        if self.neural_view == "raster" and unit_names and n_units > 0:
+            step_c = max(1, math.ceil(n_units / 9))
+            for c in range(0, n_units, step_c):
+                xc_mid = rx0 + round((c + 0.5) * rw / n_units)
+                short = unit_names[c][:3]
+                ut = self.tiny_font.render(short, True, PANEL_DIM)
+                card.blit(ut, (max(rx0, min(rx0 + rw - ut.get_width(), xc_mid - ut.get_width() // 2)),
+                               ry0 + rh + 1))
+
+        surface.blit(card, (x0, y0))
+
+    def _draw_shannon_readouts(
+        self,
+        surface: pygame.Surface,
+        diagram: Diagram,
+        x0: int,
+        y: int,
+        width: int,
+        row_h: int,
+        snap: dict,
+    ) -> int:
+        """1D Empirical Density Barcode strips over [0, 1] + Hero vertical cursor tick."""
+        bar_x = x0 + 196
+        bar_width = width - 196 - 50
+        bar_h = max(6, min(8, row_h - 7))
+        barcodes: dict = snap.get("barcodes", {}) or {}
+        max_text_w = bar_x - x0 - 6
+
+        for p in diagram.parts:
+            name_surf = self.small_font.render(p.name, True, TEXT)
+            surface.blit(name_surf, (x0, y + (row_h - name_surf.get_height()) // 2))
+            rem_w = max_text_w - name_surf.get_width() - 5
+            if rem_w >= 24:
+                label = p.label if p.effective is None else f"thr {p.effective:.1f}"
+                lbl_surf = self.tiny_font.render(label, True, PANEL_DIM)
+                if lbl_surf.get_width() > rem_w:
+                    lbl_surf = lbl_surf.subsurface((0, 0, rem_w, lbl_surf.get_height()))
+                surface.blit(lbl_surf, (x0 + name_surf.get_width() + 5,
+                                        y + (row_h - lbl_surf.get_height()) // 2 + 1))
+
+            bc = barcodes.get(p.name)
+            by = y + (row_h - bar_h) // 2
+            if p.kind == "module":
+                lit = sum(1 for lv in p.level if lv > 0)
+                hero_frac = lit / max(len(p.level), 1)
+                val_str = f"{lit}/{len(p.level)}"
+            elif p.shape is not None:
+                rows = self.rows_of(p.level)
+                total_cells = max(len(rows) * len(rows[0]), 1)
+                lit = sum(1 for row in rows for lv in row if lv > 0)
+                hero_frac = lit / total_cells
+                val_str = f"{lit}/{total_cells}"
+            else:
+                hero_frac = float(p.level)
+                val_str = f"{p.value:+.2f}" if p.kind == "control" else f"{p.value:.2f}"
+
+            self._draw_barcode_strip(
+                surface, bar_x, by, bar_width, bar_h, bc, hero_frac, is_learning=False
+            )
+            v_surf = self.small_font.render(val_str, True, TEXT)
+            surface.blit(v_surf, (x0 + width - v_surf.get_width(),
+                                  y + (row_h - v_surf.get_height()) // 2))
+            y += row_h
+
+        for w in diagram.wires:
+            if not w.learning:
+                continue
+            _, on = learning_colors(w)
+            w_key = f"{w.source}->{w.target}"
+            name_surf = self.small_font.render(w_key, True, TEXT)
+            if name_surf.get_width() > max_text_w - 18:
+                name_surf = name_surf.subsurface((0, 0, max_text_w - 18, name_surf.get_height()))
+            surface.blit(name_surf, (x0, y + (row_h - name_surf.get_height()) // 2))
+            letter = LEARNING_LABELS[w.learning] + ("•" if w.waiting else "")
+            l_surf = self.tiny_font.render(letter, True, on)
+            surface.blit(l_surf, (x0 + name_surf.get_width() + 4,
+                                  y + (row_h - l_surf.get_height()) // 2 + 1))
+
+            bc = barcodes.get(w_key) or barcodes.get((w.source, w.target))
+            by = y + (row_h - bar_h) // 2
+            self._draw_barcode_strip(
+                surface, bar_x, by, bar_width, bar_h, bc, float(w.strength), is_learning=True
+            )
+            v_surf = self.small_font.render(f"{w.strength:.2f}", True, TEXT)
+            surface.blit(v_surf, (x0 + width - v_surf.get_width(),
+                                  y + (row_h - v_surf.get_height()) // 2))
+            y += row_h
+
+        return y
+
+    def _draw_barcode_strip(
+        self,
+        surface: pygame.Surface,
+        bx: int,
+        by: int,
+        bw: int,
+        bh: int,
+        bc: dict | None,
+        fallback_hero_norm: float,
+        *,
+        is_learning: bool = False,
+    ) -> None:
+        """Render a 1D Empirical Density Barcode over [0, 1] + Hero vertical cursor tick."""
+        pygame.draw.rect(surface, (11, 14, 28), (bx, by, bw, bh), border_radius=3)
+        hist = None
+        hero_norm = fallback_hero_norm
+        if bc is not None and "hist" in bc:
+            hist = np.asarray(bc["hist"], dtype=float).ravel()
+            if "hero_val" in bc:
+                hero_norm = float(bc["hero_val"])
+
+        if hist is not None and hist.size > 0:
+            n_bins = hist.size
+            h_max = max(float(hist.max()), 1e-9)
+            inner_w = bw - 2
+            for b_i in range(n_bins):
+                mass = float(hist[b_i])
+                if mass <= 1e-6:
+                    continue
+                x_b0 = bx + 1 + round(b_i * inner_w / n_bins)
+                x_b1 = max(x_b0 + 1, bx + 1 + round((b_i + 1) * inner_w / n_bins))
+                inten = (mass / h_max) ** 0.52
+                bin_center = (b_i + 0.5) / n_bins
+                if is_learning:
+                    base_c = PHASE_EMERALD if bin_center > STRENGTH_TICK else FLOW_ATTRACT
+                    col = lerp_color((18, 36, 48), base_c, 0.25 + 0.75 * inten)
+                elif self.neural_view == "entropy":
+                    col = lerp_color((24, 22, 54), PHASE_VIOLET if inten < 0.7 else FLOW_ORBIT, inten)
+                else:
+                    mid_c = lerp_color((24, 78, 152), FLOW_ATTRACT, min(inten * 1.35, 1.0))
+                    col = lerp_color(mid_c, FLOW_ORBIT, max(0.0, (inten - 0.55) / 0.45))
+                pygame.draw.rect(surface, col, (x_b0, by + 1, x_b1 - x_b0, max(1, bh - 2)))
+        else:
+            filled = round((bw - 2) * min(max(fallback_hero_norm, 0.0), 1.0))
+            if filled > 0:
+                col = tuple(int(c) for c in heat_colors(np.array(min(max(fallback_hero_norm, 0.0), 1.0))))
+                pygame.draw.rect(surface, col, (bx + 1, by + 1, filled, max(1, bh - 2)))
+
+        pygame.draw.rect(surface, (62, 76, 114), (bx, by, bw, bh), 1, border_radius=3)
+
+        if is_learning:
+            tick_x = bx + 1 + round((bw - 3) * STRENGTH_TICK)
+            pygame.draw.line(surface, FLOW_ORBIT, (tick_x, by - 2), (tick_x, by + bh + 1), 2)
+
+        # Crisp bright Hero cursor tick!
+        hx_tick = bx + 1 + round((bw - 3) * min(max(hero_norm, 0.0), 1.0))
+        pygame.draw.line(surface, (8, 10, 20), (hx_tick, by - 2), (hx_tick, by + bh + 1), 4)
+        pygame.draw.line(surface, SELECTED_RING, (hx_tick, by - 2), (hx_tick, by + bh + 1), 2)
+
+    def _draw_shannon_params(self, surface: pygame.Surface, diagram: Diagram, x0: int, y: int) -> None:
+        items = [f"{name} {value}" for name, value in diagram.params.items()]
+        for line in ("   ".join(items[:2]), "   ".join(items[2:])):
+            surface.blit(self.small_font.render(line, True, PANEL_DIM), (x0, y + 1))
+            y += 15
 
     def draw_diagram(self, surface: pygame.Surface, diagram: Diagram,
                      center: tuple[int, int], radius: float) -> None:
@@ -1744,6 +2835,99 @@ def draw_dashed_line(surface, color, a, b, width: int, dash: float = 6) -> None:
 def lerp_color(a, b, t: float) -> tuple[int, int, int]:
     t = min(max(t, 0.0), 1.0)
     return tuple(int(x + (y - x) * t) for x, y in zip(a, b))
+
+
+def _fill_annular_sector(
+    surface: pygame.Surface,
+    cx: float,
+    cy: float,
+    r_in: float,
+    r_out: float,
+    a_start: float,
+    a_end: float,
+    color: tuple[int, ...],
+) -> None:
+    """Draw a smooth filled annular polygon sector between `a_start` and `a_end` (radians)."""
+    span = abs(a_end - a_start)
+    if span < 1e-4 or r_out <= r_in:
+        return
+    n_steps = max(6, int(math.ceil(span / 0.12)))
+    angles = [a_start + (a_end - a_start) * (k / n_steps) for k in range(n_steps + 1)]
+    outer = [(cx + r_out * math.cos(a), cy - r_out * math.sin(a)) for a in angles]
+    inner = [(cx + r_in * math.cos(a), cy - r_in * math.sin(a)) for a in reversed(angles)]
+    pygame.draw.polygon(surface, color, outer + inner)
+
+
+def _draw_segmented_bar(
+    surface: pygame.Surface,
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    arcs: list[tuple[int, float]],
+) -> None:
+    """Draw a horizontal empirical codeword mass bar across `[x, x + w]`."""
+    pygame.draw.rect(surface, (30, 36, 56), (x, y, w, h), border_radius=1)
+    cur_f = 0.0
+    for cw_idx, prob in arcs:
+        p = min(max(float(prob), 0.0), 1.0 - cur_f)
+        if p <= 0.004:
+            continue
+        x0 = x + round(cur_f * w)
+        x1 = max(x0 + 1, x + round((cur_f + p) * w))
+        pygame.draw.rect(surface, codeword_color(int(cw_idx)), (x0, y, x1 - x0, h))
+        cur_f += p
+
+
+def _lookup_wire_bits(snap: dict, w) -> float:
+    """Look up live Channel MI / Transfer Entropy bits for bundled wire `w`."""
+    candidates = [
+        snap.get("wire_info_bits"),
+        snap.get("wire_te_bits"),
+        snap.get("wire_mi_bits"),
+        snap.get("wire_info_by_pair"),
+    ]
+    keys = (
+        (w.source, w.target, w.sign),
+        (w.source, w.target, w.source_port, w.target_port, w.sign),
+        (w.source, w.target),
+        f"{w.source}->{w.target}",
+        f"{w.source}->{w.target}:{'+' if w.sign > 0 else '-'}",
+    )
+    best = 0.0
+    for table in candidates:
+        if not isinstance(table, dict):
+            continue
+        for k in keys:
+            if k in table:
+                val = table[k]
+                if isinstance(val, dict):
+                    val = val.get("info_bits", val.get("bits", 0.0))
+                best = max(best, float(val))
+                break
+    return max(0.0, best)
+
+
+def _lookup_part_grid(
+    snap: dict, field_name: str, part_name: str, shape: tuple[int, int]
+) -> np.ndarray | None:
+    """Extract a 2D `(rows, cols)` cell probability or cell entropy array for camera/array parts."""
+    table = snap.get(field_name) or snap.get(f"part_{field_name}")
+    arr = None
+    if isinstance(table, dict) and part_name in table:
+        arr = table[part_name]
+    else:
+        grids = snap.get("part_grids")
+        if isinstance(grids, dict) and part_name in grids:
+            sub = grids[part_name]
+            if isinstance(sub, dict):
+                arr = sub.get(field_name) or sub.get(field_name.replace("grid_", ""))
+    if arr is None:
+        return None
+    out = np.asarray(arr, dtype=float)
+    if out.size == shape[0] * shape[1]:
+        return out.reshape(shape)
+    return None
 
 
 def run_window(scenario: Scenario, dynamics_mode: int = 0) -> None:
