@@ -1,0 +1,112 @@
+name: Dynamics — Shy swarm
+description: >-
+  Sixteen Vehicle 9 Shy observers sharing an open arena with two approaching Chasers and two
+  wandering Walkers. At any instant, portions of the Shy swarm track off-axis motion via
+  look_left/look_right while faced observers trigger symmetric -> turn_away -> run -> turn_back.
+
+world: ../worlds/open-field.yaml
+
+vehicles:
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [50, 32]
+      heading: 90
+      label: "Shy #0"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [36, 56]
+      heading: 135
+      label: "Shy #1"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [62, 56]
+      heading: 45
+      label: "Shy #2"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [42, 38]
+      heading: 215
+      label: "Shy #3"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [58, 36]
+      heading: 75
+      label: "Shy #4"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [44, 66]
+      heading: 290
+      label: "Shy #5"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [22, 60]
+      heading: 70
+      label: "Shy #6"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [66, 76]
+      heading: 315
+      label: "Shy #7"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [82, 58]
+      heading: 135
+      label: "Shy #8"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [22, 36]
+      heading: 335
+      label: "Shy #9"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [42, 20]
+      heading: 130
+      label: "Shy #10"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [68, 28]
+      heading: 105
+      label: "Shy #11"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [30, 82]
+      heading: 295
+      label: "Shy #12"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [56, 82]
+      heading: 255
+      label: "Shy #13"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [82, 38]
+      heading: 115
+      label: "Shy #14"
+  - vehicle:
+      definition: ../vehicles/vehicle9-shy.yaml
+      position: [18, 76]
+      heading: 345
+      label: "Shy #15"
+  - vehicle:
+      definition: ../vehicles/vehicle9-chaser.yaml
+      position: [50, 52]
+      heading: 270
+      label: "Chaser #0"
+  - vehicle:
+      definition: ../vehicles/vehicle9-chaser.yaml
+      position: [26, 70]
+      heading: 315
+      label: "Chaser #1"
+  - vehicle:
+      definition: ../vehicles/vehicle9-walker.yaml
+      position: [74, 68]
+      heading: 225
+      label: "Walker #0"
+  - vehicle:
+      definition: ../vehicles/vehicle9-walker.yaml
+      position: [28, 26]
+      heading: 35
+      label: "Walker #1"
+simulation:
+  dt: 0.05
+  seed: 0

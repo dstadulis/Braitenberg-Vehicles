@@ -1,0 +1,132 @@
+name: Dynamics — Wary moth swarm
+description: >-
+  Twenty-four Vehicle 7 Wary Moths between the safe white lamp and the hot red lamp.
+  Staggered encounters with the hot red lamp drive Mnemotrix weights (sees_red -> danger)
+  into a bimodal split across the active synaptic threshold w_c = 0.7.
+
+world: ../worlds/hot-lamp.yaml
+
+vehicles:
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [70, 24]
+      heading: 90
+      label: "Wary Moth #0"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [70, 42]
+      heading: 90
+      label: "Wary Moth #1"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [70, 58]
+      heading: 270
+      label: "Wary Moth #2"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [62, 50]
+      heading: 0
+      label: "Wary Moth #3"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [78, 50]
+      heading: 180
+      label: "Wary Moth #4"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [63, 43]
+      heading: 45
+      label: "Wary Moth #5"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [77, 57]
+      heading: 225
+      label: "Wary Moth #6"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [63, 57]
+      heading: 315
+      label: "Wary Moth #7"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [77, 43]
+      heading: 135
+      label: "Wary Moth #8"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [86, 36]
+      heading: 140
+      label: "Wary Moth #9"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [86, 64]
+      heading: 220
+      label: "Wary Moth #10"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [70, 76]
+      heading: 270
+      label: "Wary Moth #11"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [30, 34]
+      heading: 90
+      label: "Wary Moth #12"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [30, 66]
+      heading: 270
+      label: "Wary Moth #13"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [16, 50]
+      heading: 0
+      label: "Wary Moth #14"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [44, 50]
+      heading: 180
+      label: "Wary Moth #15"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [18, 36]
+      heading: 40
+      label: "Wary Moth #16"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [18, 64]
+      heading: 320
+      label: "Wary Moth #17"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [10, 16]
+      heading: 55
+      label: "Wary Moth #18"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [10, 84]
+      heading: 305
+      label: "Wary Moth #19"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [36, 14]
+      heading: 105
+      label: "Wary Moth #20"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [36, 86]
+      heading: 255
+      label: "Wary Moth #21"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [50, 12]
+      heading: 120
+      label: "Wary Moth #22"
+  - vehicle:
+      definition: ../vehicles/vehicle7-wary-moth.yaml
+      position: [50, 88]
+      heading: 240
+      label: "Wary Moth #23"
+simulation:
+  dt: 0.05
+  seed: 0
