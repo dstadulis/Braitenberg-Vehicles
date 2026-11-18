@@ -1,0 +1,132 @@
+name: Dynamics — Moth swarm
+description: >-
+  Twenty-four Vehicle 5 Moths in a two-light arena at staggered radii and approach angles.
+  Successive waves hit the pain threshold, latch the self-excitatory burned unit, and
+  bifurcate irreversibly from light-seeking into light-avoidance while outer moths still seek.
+
+world: ../worlds/two-lights.yaml
+
+vehicles:
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [12, 26]
+      heading: 52
+      label: "Moth #0"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [23, 50]
+      heading: 0
+      label: "Moth #1"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [77, 50]
+      heading: 180
+      label: "Moth #2"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [30, 41]
+      heading: 85
+      label: "Moth #3"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [70, 59]
+      heading: 265
+      label: "Moth #4"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [20, 42]
+      heading: 35
+      label: "Moth #5"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [80, 58]
+      heading: 215
+      label: "Moth #6"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [16, 66]
+      heading: 315
+      label: "Moth #7"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [84, 34]
+      heading: 135
+      label: "Moth #8"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [30, 24]
+      heading: 82
+      label: "Moth #9"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [70, 76]
+      heading: 262
+      label: "Moth #10"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [46, 28]
+      heading: 118
+      label: "Moth #11"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [54, 72]
+      heading: 298
+      label: "Moth #12"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [8, 52]
+      heading: 12
+      label: "Moth #13"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [92, 48]
+      heading: 192
+      label: "Moth #14"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [6, 12]
+      heading: 30
+      label: "Moth #15"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [50, 5]
+      heading: 90
+      label: "Moth #16"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [50, 95]
+      heading: 270
+      label: "Moth #17"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [5, 5]
+      heading: 0
+      label: "Moth #18"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [95, 95]
+      heading: 180
+      label: "Moth #19"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [5, 95]
+      heading: 0
+      label: "Moth #20"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [95, 5]
+      heading: 180
+      label: "Moth #21"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [50, 2]
+      heading: 0
+      label: "Moth #22"
+  - vehicle:
+      definition: ../vehicles/vehicle5-moth.yaml
+      position: [50, 98]
+      heading: 180
+      label: "Moth #23"
+simulation:
+  dt: 0.05
+  seed: 0

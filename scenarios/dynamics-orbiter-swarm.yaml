@@ -1,0 +1,132 @@
+name: Dynamics — Orbiter swarm
+description: >-
+  Twenty-four Vehicle 4a Orbiters in the three-lamp chaotic arena, straddling the southern
+  FTLE saddle separatrix, inner repulsion cores, preferred limit-cycle rings, and outer
+  attraction basins. Orbiter #0 launches near the southern saddle as the Hero tracer.
+
+world: ../worlds/three-lights-chaos.yaml
+
+vehicles:
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 59]
+      heading: 88
+      label: "Orbiter #0"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 59]
+      heading: 84
+      label: "Orbiter #1"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 59]
+      heading: 86
+      label: "Orbiter #2"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 59]
+      heading: 90
+      label: "Orbiter #3"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 59]
+      heading: 92
+      label: "Orbiter #4"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 59]
+      heading: 95
+      label: "Orbiter #5"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 113]
+      heading: 15
+      label: "Orbiter #6"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [88, 122]
+      heading: 105
+      label: "Orbiter #7"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [51, 59]
+      heading: 260
+      label: "Orbiter #8"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [43.6, 67]
+      heading: 170
+      label: "Orbiter #9"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [109, 59]
+      heading: 80
+      label: "Orbiter #10"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [116.4, 51]
+      heading: 350
+      label: "Orbiter #11"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 140]
+      heading: 180
+      label: "Orbiter #12"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [62, 122]
+      heading: 270
+      label: "Orbiter #13"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [26, 59]
+      heading: 90
+      label: "Orbiter #14"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [43.6, 41]
+      heading: 0
+      label: "Orbiter #15"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [134, 59]
+      heading: 270
+      label: "Orbiter #16"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [116.4, 77]
+      heading: 180
+      label: "Orbiter #17"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [56, 95]
+      heading: 315
+      label: "Orbiter #18"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [104, 95]
+      heading: 225
+      label: "Orbiter #19"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 22]
+      heading: 92
+      label: "Orbiter #20"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [18, 96]
+      heading: 340
+      label: "Orbiter #21"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [142, 96]
+      heading: 200
+      label: "Orbiter #22"
+  - vehicle:
+      definition: ../vehicles/vehicle4a-orbiter.yaml
+      position: [80, 82]
+      heading: 35
+      label: "Orbiter #23"
+simulation:
+  dt: 0.05
+  seed: 0

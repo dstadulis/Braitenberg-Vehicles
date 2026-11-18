@@ -1,0 +1,132 @@
+name: Dynamics — Forager swarm
+description: >-
+  Twenty-four Vehicle 5 Foragers cycling around a single recharging lamp across the slow-fast
+  (r, energy) relaxation oscillation, simultaneously populating both the hungry-seeking and
+  full-exploring branches of the hysteresis latch.
+
+world: ../worlds/one-light.yaml
+
+vehicles:
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [30, 44]
+      heading: 12
+      label: "Forager #0"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [58, 50]
+      heading: 0
+      label: "Forager #1"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [62, 50]
+      heading: 180
+      label: "Forager #2"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [60, 47]
+      heading: 90
+      label: "Forager #3"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [60, 53]
+      heading: 270
+      label: "Forager #4"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [55, 47]
+      heading: 35
+      label: "Forager #5"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [65, 53]
+      heading: 215
+      label: "Forager #6"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [56, 54]
+      heading: 315
+      label: "Forager #7"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [44, 50]
+      heading: 0
+      label: "Forager #8"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [76, 50]
+      heading: 180
+      label: "Forager #9"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [60, 32]
+      heading: 85
+      label: "Forager #10"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [60, 68]
+      heading: 265
+      label: "Forager #11"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [40, 30]
+      heading: 45
+      label: "Forager #12"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [80, 70]
+      heading: 225
+      label: "Forager #13"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [36, 70]
+      heading: 320
+      label: "Forager #14"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [84, 30]
+      heading: 140
+      label: "Forager #15"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [10, 50]
+      heading: 160
+      label: "Forager #16"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [12, 14]
+      heading: 200
+      label: "Forager #17"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [12, 86]
+      heading: 120
+      label: "Forager #18"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [24, 10]
+      heading: 260
+      label: "Forager #19"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [24, 90]
+      heading: 100
+      label: "Forager #20"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [94, 10]
+      heading: 310
+      label: "Forager #21"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [94, 90]
+      heading: 50
+      label: "Forager #22"
+  - vehicle:
+      definition: ../vehicles/vehicle5-forager.yaml
+      position: [6, 30]
+      heading: 180
+      label: "Forager #23"
+simulation:
+  dt: 0.05
+  seed: 0
