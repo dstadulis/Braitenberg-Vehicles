@@ -192,6 +192,12 @@ Each example is a scenario in `scenarios/`. Run it with `python -m braitenberg` 
 | Vehicle 14: Impatient | Waiting for a carrier that brings food, taps at nothing now and then, as if that could hasten it | `python -m braitenberg scenarios/vehicle14-impatient.yaml` |
 | Dynamics: Twin-lamp separatrix | 3a and 4a straddling the midline saddle split toward opposite lamps | `python -m braitenberg scenarios/dynamics-twin-lamp-separatrix.yaml` |
 | Dynamics: Three-body orbiter | Tiny heading differences send 4a orbiters onto distinct limit cycles and chaotic tours | `python -m braitenberg scenarios/dynamics-three-body-orbiter.yaml` |
+| Dynamics: Orbiter swarm | 24 4a orbiters straddling three-lamp separatrices and limit-cycle basins | `python -m braitenberg scenarios/dynamics-orbiter-swarm.yaml` |
+| Dynamics: Moth swarm | 24 moths approaching two lamps and latching `burned` across a fold catastrophe | `python -m braitenberg scenarios/dynamics-moth-swarm.yaml` |
+| Dynamics: Forager swarm | 24 foragers cycling around the `(r, energy)` relaxation loop | `python -m braitenberg scenarios/dynamics-forager-swarm.yaml` |
+| Dynamics: Wary moth swarm | 24 wary moths splitting across the `0.7` Mnemotrix gate between red and white lamps | `python -m braitenberg scenarios/dynamics-wary-moth-swarm.yaml` |
+| Dynamics: Shy swarm | 16 shy vehicles watching and fleeing symmetric approaches from chasers and walkers | `python -m braitenberg scenarios/dynamics-shy-swarm.yaml` |
+| Dynamics: Daydreamer swarm | 24 daydreamers running homeostatic trains of thought in the dark | `python -m braitenberg scenarios/dynamics-daydreamer-swarm.yaml` |
 
 In the window:
 
@@ -202,7 +208,8 @@ In the window:
 | R | Restart the scenario |
 | T | Show or hide the trails |
 | V | Show or hide the selected vehicle's camera views |
-| D | Cycle the live dynamics overlay (flow field, phase portrait, both) |
+| D | Cycle the live dynamics overlay (arena flow, phase + Shannon brain, full tri-view) |
+| N | Cycle the Shannon nervous-system view (`composite`, `codebook`, `entropy`, `raster`) |
 | + / − | Faster or slower |
 | Tab | Show the next stimulus in the heat map (e.g. `red` and `green`) |
 | Drag a source | Move it; the vehicles react to the new field |
@@ -228,15 +235,16 @@ pytest -m slow                                                                  
 
 An evolution file (`evolutions/`) names a vehicle, a world and the numbers that may change. Each vehicle is tried alone and selection keeps the ones that last longest before running out of energy. The results (a log, the best vehicle as a definition file, and plots) go to `runs/`. See [specs/vehicle-06.md](specs/vehicle-06.md).
 
-### Nonlinear dynamics
+### Nonlinear dynamics & Shannon connectome
 
 ```
 pip install -e ".[analysis,record]"                                                  # matplotlib and pillow
-python -m braitenberg.dynamics poster --act atlas --out-dir runs/                    # 4K phase-space atlas
+python -m braitenberg.dynamics poster --experiment v9_shy --neural-view composite --out-dir runs/
+python -m braitenberg.dynamics animate --experiment v5_moth --neural-view codebook --out-dir runs/
 python -m braitenberg.dynamics showcase --out-dir experiments/strogatz-dynamics/media
 ```
 
-`braitenberg.dynamics` analyzes Vehicles 1 to 12 as dynamical systems — polar phase portraits, Finite-Time Lyapunov Exponent ridges, hysteresis and synaptic bifurcations, and Vehicle 12's cortical ring order parameter — and renders posters and 60 fps animations without opening a window. See [specs/dynamics.md](specs/dynamics.md).
+`braitenberg.dynamics` characterizes isolated single-species experiments (`v4a_orbiter`, `v5_moth`, `v5_forager`, `v7_wary_moth`, `v9_shy`, `v12_daydreamer`) across synchronized Tri-Panel views — physical arena and Finite-Time Lyapunov Exponent ridges, geometric phase space, and a lossless Shannon ensemble nervous system (`--neural-view composite|codebook|entropy|raster`) — without opening a window. See [specs/dynamics.md](specs/dynamics.md).
 
 A simulation is built from three kinds of YAML files: worlds (`worlds/`), vehicle definitions (`vehicles/`) and scenarios that combine them (`scenarios/`). See [specs/scenarios.md](specs/scenarios.md).
 
@@ -245,7 +253,7 @@ A simulation is built from three kinds of YAML files: worlds (`worlds/`), vehicl
 Explorations outside the simulator, each in its own folder under `experiments/` with a README:
 
 - [A CSCG learns the traffic light](experiments/cscg/README.md): a clone-structured cognitive graph learns the sequence the Vehicle 11 cautious driver learns with Ergotrix wires, and also when each color will change.
-- [Synthetic psychology as nonlinear dynamics](experiments/strogatz-dynamics/README.md): phase portraits, Finite-Time Lyapunov Exponent ridges, synaptic bifurcations at `0.7` and Vehicle 12's ring order parameter, with an offline interactive browser lab ([`explorer.html`](experiments/strogatz-dynamics/explorer.html)) and the poster and animation studio `python -m braitenberg.dynamics`.
+- [Synthetic psychology as nonlinear dynamics & Shannon coding](experiments/strogatz-dynamics/README.md): six single-species Tri-Panel experiments uniting phase portraits and FTLE ridges with Joint Codebook rings, Watanabe synergy, mutual information and sorted microstate bit-rasters, plus an offline interactive browser lab ([`explorer.html`](experiments/strogatz-dynamics/explorer.html)) and `python -m braitenberg.dynamics`.
 
 ## Images for the specs
 
