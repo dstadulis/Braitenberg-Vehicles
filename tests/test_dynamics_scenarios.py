@@ -1,4 +1,4 @@
-"""Tests for multi-source dynamical scenarios and separatrix splitting."""
+"""Tests for dynamical scenarios, Tri-Panel explorer.html, and Strogatz x Shannon monograph."""
 
 from __future__ import annotations
 
@@ -27,7 +27,21 @@ EXPLORER_HTML = REPO / "experiments" / "strogatz-dynamics" / "explorer.html"
 MONOGRAPH_README = REPO / "experiments" / "strogatz-dynamics" / "README.md"
 VEHICLE3A = REPO / "vehicles" / "vehicle3a-love.yaml"
 VEHICLE4A = REPO / "vehicles" / "vehicle4a-orbiter.yaml"
-VEHICLE4B = REPO / "vehicles" / "vehicle4b-decider.yaml"
+
+CANONICAL_EXPERIMENTS: tuple[tuple[str, str, str, str], ...] = (
+    ("v9_shy", "dynamics-shy-swarm.yaml", "9", "Shy"),
+    ("v5_moth", "dynamics-moth-swarm.yaml", "5", "Moth"),
+    ("v5_forager", "dynamics-forager-swarm.yaml", "5", "Forager"),
+    ("v7_wary_moth", "dynamics-wary-moth-swarm.yaml", "7", "Wary moth"),
+    ("v12_daydreamer", "dynamics-daydreamer-swarm.yaml", "12", "Daydreamer"),
+    ("v4a_orbiter", "dynamics-orbiter-swarm.yaml", "4a", "Orbiter"),
+)
+
+
+def _node_binary() -> str | None:
+    return shutil.which("node") or (
+        "/opt/homebrew/bin/node" if Path("/opt/homebrew/bin/node").exists() else None
+    )
 
 
 def _noiseless_scenario(scenario: Scenario) -> Scenario:
@@ -58,7 +72,6 @@ def test_three_lights_chaos_world_equilateral_geometry():
     sources = world.stimuli["light"].sources
     assert len(sources) == 3
 
-    # Verify equilateral side lengths and that direct distances are strictly inside half-arena wrap
     positions = [s.position for s in sources]
     sides = []
     for i in range(3):
@@ -70,7 +83,6 @@ def test_three_lights_chaos_world_equilateral_geometry():
             sides.append(side)
     assert max(sides) - min(sides) < 0.05
 
-    # Saddle midpoint intensity lies below Vehicle 4a's peak.at = 4 so distinct lamp rings compete
     mx = 0.5 * (positions[1][0] + positions[2][0])
     my = 0.5 * (positions[1][1] + positions[2][1])
     assert 2.0 < world.stimulus_at("light", mx, my) < 4.0
@@ -80,13 +92,10 @@ def test_twin_lamp_separatrix_loads_and_splits_across_midline():
     scenario = load_scenario(TWIN_LAMP_SCENARIO)
     assert len(scenario.vehicles) == 8
 
-    # 1. Deterministic (noiseless) manifold splitting across x = 50
     det_sim = Simulation(_noiseless_scenario(scenario))
     det_sim.run(1000)
     world = det_sim.world
 
-    # Left half of Love fan (indices 0, 1, 2) captured by Left lamp (index 0 at [30, 50]);
-    # Right half of Love fan (indices 3, 4, 5) captured by Right lamp (index 1 at [70, 50]).
     for idx in (0, 1, 2):
         v = det_sim.vehicles[idx]
         lamp_idx, dist = _nearest_source(world, v.x, v.y)
@@ -96,12 +105,10 @@ def test_twin_lamp_separatrix_loads_and_splits_across_midline():
         lamp_idx, dist = _nearest_source(world, v.x, v.y)
         assert lamp_idx == 1 and dist < 16.0
 
-    # Exact reflection symmetry across x = 50 in noiseless run
     v_left_inner, v_right_inner = det_sim.vehicles[2], det_sim.vehicles[3]
     assert v_left_inner.x + v_right_inner.x == pytest.approx(100.0, abs=1e-6)
     assert v_left_inner.y == pytest.approx(v_right_inner.y, abs=1e-6)
 
-    # 2. Default stochastic scenario (seed=0) also splits cleanly across the two lamps
     stoch_sim = Simulation(scenario)
     stoch_sim.run(1000)
     assert _nearest_source(stoch_sim.world, stoch_sim.vehicles[0].x, stoch_sim.vehicles[0].y)[0] == 0
@@ -111,13 +118,10 @@ def test_twin_lamp_separatrix_loads_and_splits_across_midline():
 
 
 def test_tiny_perturbation_splits_across_twin_lamp_separatrix():
-    """Vehicles starting tiny dx or dtheta apart across x = 50 end up at opposite lamps."""
     world = load_scenario(TWIN_LAMP_SCENARIO).world
-    v3a_det = load_definition(VEHICLE3A)
-    v3a_det = copy.deepcopy(v3a_det)
+    v3a_det = copy.deepcopy(load_definition(VEHICLE3A))
     v3a_det.general.noise_std = 0.0
 
-    # Tiny spatial offset dx = +/- 0.05 at identical heading 90 deg
     sc_spatial = Scenario(
         name="Tiny dx split",
         world=world,
@@ -134,7 +138,6 @@ def test_tiny_perturbation_splits_across_twin_lamp_separatrix():
     assert l_idx == 0 and l_dist < 16.0
     assert r_idx == 1 and r_dist < 16.0
 
-    # Tiny angular offset dtheta = +/- 0.1 deg from exact saddle bisector (50, 30)
     sc_angular = Scenario(
         name="Tiny dtheta split",
         world=world,
@@ -154,7 +157,6 @@ def test_three_body_orbiter_sensitive_dependence_and_capture_diversity():
     scenario = load_scenario(THREE_BODY_SCENARIO)
     assert len(scenario.vehicles) == 8
 
-    # 1. Deterministic flow: 2-degree perturbations from [80, 59] diverge onto all 3 lamps
     det_sim = Simulation(_noiseless_scenario(scenario))
     late_lamps = [set() for _ in det_sim.vehicles]
     for step in range(2600):
@@ -164,23 +166,19 @@ def test_three_body_orbiter_sensitive_dependence_and_capture_diversity():
                 idx, _ = _nearest_source(det_sim.world, v.x, v.y)
                 late_lamps[k].add(idx)
 
-    # Orbiter 84 deg (idx 0) -> Lamp 0; Orbiter 88 deg (idx 2) -> Lamp 2; Orbiter 92 deg (idx 3) -> Lamp 1
     assert late_lamps[0] == {0}
     assert late_lamps[2] == {2}
     assert late_lamps[3] == {1}
     assert late_lamps[5] == {0}
-    # Orbiter 86 deg (idx 1) and 94 deg (idx 4) execute multi-lamp tours rather than single-lamp lock
     assert len(late_lamps[1]) >= 2
     assert len(late_lamps[4]) >= 2
 
-    # Decider pair (indices 6, 7) scatters mirror-symmetrically across x = 80
     dec_sim = Simulation(_noiseless_scenario(scenario))
     dec_sim.run(450)
     dec_l, dec_r = dec_sim.vehicles[6], dec_sim.vehicles[7]
     assert abs(dec_l.x - dec_r.x) > 40.0
     assert dec_l.x + dec_r.x == pytest.approx(160.0, abs=1e-6)
 
-    # 2. Default stochastic scenario (seed=0) also diverges across all 3 lamp regions
     stoch_sim = Simulation(scenario)
     stoch_sim.run(2200)
     occupied_regions = {
@@ -202,110 +200,392 @@ def test_dynamics_scenarios_run_headless_without_pygame(scenario_path: Path):
     assert "80 steps" in result.stdout
 
 
-def test_explorer_html_self_contained_and_physics_parity(tmp_path: Path):
+def test_explorer_html_self_contained_tripanel_axiom_and_shannon_identities(tmp_path: Path):
     assert EXPLORER_HTML.is_file()
     html = EXPLORER_HTML.read_text(encoding="utf-8")
 
-    # Zero external network / CDN dependencies
+    # 1. Zero external network / CDN links and zero legacy cross-species mashup controls
     assert "http://" not in html and "https://" not in html
+    assert "Quartet (2a–3b)" not in html
+    assert "customParams" not in html
+
+    # 2. Required Tri-Panel canvases, themes, neural views, and 6 canonical pure experiment IDs
     for token in (
         'data-theme="cosmic"',
         '[data-theme="textbook"]',
-        "Release 800-Particle Swarm",
-        "Export 4K PNG",
-        "Supercritical Limit Cycle",
-        "Homoclinic/Saddle Escape vs Love",
-        "Three-Body Lamp Chaos",
-        "Twin-Lamp Fractal Capture Basins",
-        "Moth Fold/Latch Hysteresis Catastrophe",
-        "Daydreamer Caudate Criticality Ring",
+        'id="arenaCanvas"',
+        'id="phaseCanvas"',
+        'id="neuralCanvas"',
+        'id="selNeuralView"',
+        "Export 4K Tri-Panel PNG",
+        "validateSingleExperimentAxiom",
+        "AxiomViolationError",
+        "v9_shy",
+        "v5_moth",
+        "v5_forager",
+        "v7_wary_moth",
+        "v12_daydreamer",
+        "v4a_orbiter",
     ):
-        assert token in html
+        assert token in html, f"Missing required token in explorer.html: {token}"
 
     match = re.search(r"<script>([\s\S]*?)</script>", html)
     assert match is not None
     js_code = match.group(1)
-    assert "nearestPolar(wx, wy, lead.trailH[ti])" in js_code
-    assert "rSpan > 0.15" in js_code
 
-    node_bin = shutil.which("node") or (
-        "/opt/homebrew/bin/node" if Path("/opt/homebrew/bin/node").exists() else None
+    node_bin = _node_binary()
+    if node_bin is None:
+        pytest.skip("node binary not installed")
+
+    # 3. JS syntax validation (`node --check`)
+    script_file = tmp_path / "explorer_check.js"
+    script_file.write_text(js_code, encoding="utf-8")
+    syntax = subprocess.run([node_bin, "--check", str(script_file)], capture_output=True, text=True)
+    assert syntax.returncode == 0, syntax.stderr
+
+    # 4. Full JS runtime test: Axiom 1 enforcement, Shannon identities, click-to-switch Hero,
+    #    exact kinematics parity with Python Vehicle.step, AND full 3-canvas rendering execution!
+    harness_file = tmp_path / "tripanel_runtime_verify.js"
+    harness_file.write_text(
+        """
+function makeMockCtx() {
+  return {
+    save() {}, restore() {}, beginPath() {}, closePath() {},
+    moveTo() {}, lineTo() {}, stroke() {}, fill() {},
+    fillRect() {}, strokeRect() {}, roundRect() {}, arc() {},
+    translate() {}, rotate() {}, setLineDash() {},
+    fillText() {}, strokeText() {}, drawImage() {},
+    createRadialGradient() { return { addColorStop() {} }; },
+    createImageData(w, h) { return { data: new Uint8ClampedArray(w * h * 4) }; },
+    putImageData() {}
+  };
+}
+
+const elements = {};
+function getEl(id) {
+  if (!elements[id]) {
+    elements[id] = {
+      id,
+      width: 840,
+      height: 840,
+      value: "composite",
+      textContent: "",
+      innerHTML: "",
+      style: {},
+      listeners: {},
+      classList: { toggle() {}, add() {}, remove() {} },
+      appendChild() {},
+      addEventListener(ev, fn) { this.listeners[ev] = fn; },
+      getBoundingClientRect() { return { left: 0, top: 0, width: 840, height: 840 }; },
+      getContext() { return makeMockCtx(); },
+      toDataURL() { return "data:image/png;base64,AA=="; },
+      click() {}
+    };
+  }
+  return elements[id];
+}
+
+const document = {
+  createElement(tag) { return getEl("dyn_" + tag + "_" + Math.random()); },
+  getElementById(id) { return getEl(id); },
+  querySelectorAll() { return []; },
+  documentElement: { setAttribute() {} }
+};
+const window = { addEventListener() {} };
+let rafCount = 0;
+function requestAnimationFrame() { rafCount++; }
+"""
+        + js_code
+        + """
+const report = { presetIds: PRESETS.map(p => p.id), presets: {} };
+
+// Test every preset across simulation steps, all 4 neural views, and both themes!
+for (let idx = 0; idx < PRESETS.length; idx++) {
+  loadPreset(idx);
+  for (let step = 0; step < 35; step++) stepSimulation();
+  const pr = PRESETS[idx];
+  const snap = state.shannonSnap;
+
+  // Verify environmental Chaser/Walker boxes are strictly excluded from focal particles
+  const anyEnvInParticles = state.particles.some(p => p.isEnvTarget || p.experimentId !== pr.id);
+  let maxArcErr = 0.0;
+  let minH = Infinity, maxH = -Infinity;
+  for (const uName of pr.unitNames) {
+    const h = snap.partEntropy[uName];
+    if (h < minH) minH = h;
+    if (h > maxH) maxH = h;
+    const arcSum = snap.partCodewordArcs[uName].reduce((a, b) => a + b.prob, 0.0);
+    const err = Math.abs(arcSum - snap.partFiringProb[uName]);
+    if (err > maxArcErr) maxArcErr = err;
+  }
+  const minWireBits = Math.min(...snap.wireStats.map(w => Math.min(w.miBits, w.teBits)));
+
+  // Exercise all 4 neural views & both themes on all 3 canvases + 4K exporter!
+  for (const theme of ["cosmic", "textbook"]) {
+    state.theme = theme;
+    for (const nv of ["composite", "codebook", "entropy", "raster"]) {
+      state.neuralView = nv;
+      drawArena(actx, 840, 840);
+      drawPhaseSpace(pctx, 840, 840);
+      drawNeuralConnectome(nctx, 900, 840);
+    }
+  }
+  elements["btnExport4K"].listeners["click"]();
+
+  report.presets[pr.id] = {
+    N: snap.N,
+    M: snap.M,
+    envTargetsCount: state.envTargets.length,
+    anyEnvInParticles,
+    minH,
+    maxH,
+    H_W: snap.jointEntropyBits,
+    TC: snap.totalCorrelationBits,
+    I_Phase_W: snap.spatialMiBits,
+    minWireBits,
+    maxArcErr,
+    barcodesCount: snap.barcodes.length,
+    rasterLen: snap.rasterMatrix.length,
+    awakeProb: snap.partFiringProb.awake ?? null,
+    awakeEntropy: snap.partEntropy.awake ?? null
+  };
+}
+
+// Verify Hero Tracer switching
+loadPreset(0);
+selectHeroVehicle(5);
+report.heroSwitchOk = (state.heroIndex === 5 && state.shannonSnap.heroIndex === 5);
+
+// Verify AxiomViolationError rejects cross-species mashup AND leaked envTarget!
+let rejectsCrossSpecies = false;
+try {
+  const alien = makeFocalParticle(PRESETS[1], 20, 20, 0, 99);
+  validateSingleExperimentAxiom(PRESETS[0], [state.particles[0], alien]);
+} catch (e) {
+  rejectsCrossSpecies = e instanceof AxiomViolationError;
+}
+let rejectsEnvLeak = false;
+try {
+  validateSingleExperimentAxiom(PRESETS[0], [state.particles[0], state.envTargets[0]]);
+} catch (e) {
+  rejectsEnvLeak = e instanceof AxiomViolationError;
+}
+report.rejectsCrossSpecies = rejectsCrossSpecies;
+report.rejectsEnvLeak = rejectsEnvLeak;
+
+// Verify anticorrelated [1,0]/[0,1] vs correlated [1,1]/[0,0] ensembles are distinguished by Codebook Arcs!
+const dummySpec = { id: "v4a_orbiter", focalSpecies: "Vehicle 4a: Orbiter", unitNames: ["u0", "u1"] };
+const antiSwarm = [
+  { experimentId: "v4a_orbiter", speciesName: "Vehicle 4a: Orbiter", isEnvTarget: false, bits: new Uint8Array([1, 0]), levels: {} },
+  { experimentId: "v4a_orbiter", speciesName: "Vehicle 4a: Orbiter", isEnvTarget: false, bits: new Uint8Array([1, 0]), levels: {} },
+  { experimentId: "v4a_orbiter", speciesName: "Vehicle 4a: Orbiter", isEnvTarget: false, bits: new Uint8Array([0, 1]), levels: {} },
+  { experimentId: "v4a_orbiter", speciesName: "Vehicle 4a: Orbiter", isEnvTarget: false, bits: new Uint8Array([0, 1]), levels: {} }
+];
+const corrSwarm = [
+  { experimentId: "v4a_orbiter", speciesName: "Vehicle 4a: Orbiter", isEnvTarget: false, bits: new Uint8Array([1, 1]), levels: {} },
+  { experimentId: "v4a_orbiter", speciesName: "Vehicle 4a: Orbiter", isEnvTarget: false, bits: new Uint8Array([1, 1]), levels: {} },
+  { experimentId: "v4a_orbiter", speciesName: "Vehicle 4a: Orbiter", isEnvTarget: false, bits: new Uint8Array([0, 0]), levels: {} },
+  { experimentId: "v4a_orbiter", speciesName: "Vehicle 4a: Orbiter", isEnvTarget: false, bits: new Uint8Array([0, 0]), levels: {} }
+];
+const snapAnti = computeShannonSnapshot(dummySpec, antiSwarm, null, null, 0);
+const snapCorr = computeShannonSnapshot(dummySpec, corrSwarm, null, null, 0);
+report.antiDisjointPalette = snapAnti.partCodewordArcs.u0[0].paletteIdx !== snapAnti.partCodewordArcs.u1[0].paletteIdx;
+report.corrSharedPalette = snapCorr.partCodewordArcs.u0[0].paletteIdx === snapCorr.partCodewordArcs.u1[0].paletteIdx;
+report.antiTC = snapAnti.totalCorrelationBits;
+report.corrTC = snapCorr.totalCorrelationBits;
+
+// Exact 200-step Vehicle 4a kinematics parity against Python Vehicle.step
+const oneLight = [{ x: 60, y: 50, intensity: 10, falloff: 15, active: true }];
+const v4Params = { wiring: "crossed", sign: 1, responseType: "peak", peakAt: 4.0, peakWidth: 1.5, gain: 6.0, baseSpeed: 2.0, maxSpeed: 12.0 };
+let kx = 35.0, ky = 44.0, kh = 0.0;
+for (let step = 0; step < 200; step++) {
+  const kin = memorylessKinematics(kx, ky, kh, v4Params, oneLight, 100, 100, true);
+  kh += kin.turnRate * 0.05;
+  kx = ((kx + kin.speed * Math.cos(kh) * 0.05) % 100 + 100) % 100;
+  ky = ((ky + kin.speed * Math.sin(kh) * 0.05) % 100 + 100) % 100;
+}
+report.kinematicsPose = { x: kx, y: ky, h: kh };
+
+console.log(JSON.stringify(report));
+""",
+        encoding="utf-8",
     )
-    if node_bin is not None:
-        script_file = tmp_path / "explorer_check.js"
-        script_file.write_text(js_code, encoding="utf-8")
-        syntax = subprocess.run([node_bin, "--check", str(script_file)], capture_output=True, text=True)
-        assert syntax.returncode == 0, syntax.stderr
 
-        # Verify exact numerical kinematics parity between JS kernel and Python Vehicle.step
-        kernel_js = js_code[: js_code.index('const arenaCanvas = document.getElementById("arenaCanvas");')]
-        parity_file = tmp_path / "parity.js"
-        parity_file.write_text(
-            """
+    run_js = subprocess.run([node_bin, str(harness_file)], capture_output=True, text=True)
+    assert run_js.returncode == 0, run_js.stderr
+    report = json.loads(run_js.stdout.strip())
+
+    assert report["presetIds"] == [exp_id for exp_id, _, _, _ in CANONICAL_EXPERIMENTS]
+    assert report["heroSwitchOk"] is True
+    assert report["rejectsCrossSpecies"] is True
+    assert report["rejectsEnvLeak"] is True
+    assert report["antiDisjointPalette"] is True
+    assert report["corrSharedPalette"] is True
+    assert report["antiTC"] == pytest.approx(1.0, abs=1e-12)
+    assert report["corrTC"] == pytest.approx(1.0, abs=1e-12)
+
+    for exp_id, _, _, _ in CANONICAL_EXPERIMENTS:
+        pr = report["presets"][exp_id]
+        assert pr["anyEnvInParticles"] is False
+        assert pr["minH"] >= -1e-12 and pr["maxH"] <= 1.0 + 1e-12
+        assert pr["H_W"] >= 0.0
+        assert pr["TC"] >= 0.0
+        assert pr["I_Phase_W"] >= 0.0
+        assert pr["minWireBits"] >= 0.0
+        assert pr["maxArcErr"] < 1e-12
+        assert pr["barcodesCount"] >= 4
+        assert pr["rasterLen"] == pr["N"] * pr["M"]
+
+    assert report["presets"]["v9_shy"]["envTargetsCount"] >= 2
+    assert report["presets"]["v12_daydreamer"]["awakeProb"] == pytest.approx(1.0, abs=1e-12)
+    assert report["presets"]["v12_daydreamer"]["awakeEntropy"] == pytest.approx(0.0, abs=1e-12)
+
+    # Verify exact numerical kinematics parity against Python Vehicle.step
+    w1 = load_world(ONE_LIGHT)
+    v4a_det = copy.deepcopy(load_definition(VEHICLE4A))
+    v4a_det.general.noise_std = 0.0
+    veh = Vehicle(v4a_det, 35.0, 44.0, 0.0, dt=0.05, seed=0)
+    rng = np.random.default_rng(0)
+    for _ in range(200):
+        readings = {
+            name: float(w1.stimulus_at(stim, sx, sy))
+            for name, stim, sx, sy in veh.sensor_points()
+        }
+        veh.step(readings, 0.05, rng)
+        w1.arena.apply_edges(veh)
+
+    js_pose = report["kinematicsPose"]
+    assert js_pose["x"] == pytest.approx(veh.x, abs=1e-10)
+    assert js_pose["y"] == pytest.approx(veh.y, abs=1e-10)
+    assert js_pose["h"] == pytest.approx(veh.heading, abs=1e-10)
+
+
+def test_monograph_readme_showcase_media_and_axiomatic_purity():
+    assert MONOGRAPH_README.is_file()
+    md = MONOGRAPH_README.read_text(encoding="utf-8")
+
+    # All 6 pure 1-experiment-per-file GIFs, Cosmic 4K plates, Textbook 4K plates, and MP4 cuts
+    for exp_id, scenario_name, _, _ in CANONICAL_EXPERIMENTS:
+        assert f"media/{exp_id}.gif" in md, f"Missing GIF media/{exp_id}.gif in README.md"
+        assert f"media/{exp_id}_tripanel.png" in md, f"Missing 4K plate media/{exp_id}_tripanel.png"
+        assert f"media/{exp_id}_tripanel_textbook.png" in md, f"Missing textbook plate for {exp_id}"
+        assert f"media/mp4/{exp_id}_" in md, f"Missing social MP4 reference for {exp_id}"
+        assert scenario_name in md, f"Missing swarm scenario link {scenario_name}"
+
+    # Zero legacy cross-experiment mashup plates in README.md
+    for legacy_mashup in (
+        "media/strogatz_atlas.png",
+        "media/plasticity.gif",
+        "media/act1_polar_phase_portraits.png",
+        "media/act3_hysteresis_and_plasticity.png",
+    ):
+        assert legacy_mashup not in md, f"Legacy mashup asset {legacy_mashup} must not appear in README.md"
+
+    for landmark in (
+        "Axiom 1",
+        "Watanabe",
+        "TC(\\mathbf{A})",
+        "T_{S \\to D}",
+        "awake",
+        "0.00\\text{ bits}",
+        "w_c = 0.7",
+        "explorer.html",
+        "python -m braitenberg.dynamics",
+    ):
+        assert landmark in md, f"Missing theoretical landmark {landmark!r} in README.md"
+
+
+@pytest.mark.parametrize("exp_id,fname,expected_type,expected_name", CANONICAL_EXPERIMENTS)
+def test_six_swarm_scenarios_headless_and_focal_homogeneity(
+    exp_id: str, fname: str, expected_type: str, expected_name: str
+):
+    from braitenberg.dynamics.shannon import (
+        EXPERIMENTS,
+        compute_shannon_snapshot,
+        select_focal_vehicles,
+        validate_single_experiment_axiom,
+    )
+
+    assert set(EXPERIMENTS.keys()) == {eid for eid, _, _, _ in CANONICAL_EXPERIMENTS}
+
+    sc_path = REPO / "scenarios" / fname
+    assert sc_path.is_file()
+    scenario = load_scenario(sc_path)
+    sim = Simulation(scenario)
+    sim.run(15)
+
+    focal = select_focal_vehicles(sim.vehicles)
+    assert len(focal) >= 12, f"Expected swarm of >= 12 focal vehicles in {fname}"
+    for v in focal:
+        assert v.definition.general.type == expected_type
+        assert v.definition.general.name == expected_name
+
+    if exp_id == "v9_shy":
+        # Environmental Chaser/Walker stimulus vehicles exist in world but are excluded from focal!
+        assert len(sim.vehicles) > len(focal)
+
+    spec = EXPERIMENTS[exp_id]
+    validate_single_experiment_axiom(spec, vehicles=focal)
+    snap = compute_shannon_snapshot(focal)
+    assert snap["joint_entropy_bits"] >= 0.0
+    assert snap["total_correlation_bits"] >= 0.0
+
+
+def test_python_and_js_shannon_entropy_exact_parity(tmp_path: Path):
+    """Python shannon.py and explorer.html JS compute identical H(W), sum H(A_k), and TC(A)."""
+    node_bin = _node_binary()
+    if node_bin is None:
+        pytest.skip("node binary not installed")
+
+    from braitenberg.dynamics.shannon import compute_shannon_snapshot, select_focal_vehicles
+
+    sim = Simulation(load_scenario(REPO / "scenarios" / "dynamics-moth-swarm.yaml"))
+    sim.run(90)
+    focal = select_focal_vehicles(sim.vehicles)
+    py_snap = compute_shannon_snapshot(focal)
+    b_mat = np.asarray(py_snap["binary_matrix"], dtype=int).tolist()
+    feat_names = list(py_snap["feature_names"])
+
+    html = EXPLORER_HTML.read_text(encoding="utf-8")
+    js_code = re.search(r"<script>([\s\S]*?)</script>", html).group(1)
+    kernel_js = js_code[: js_code.index('const arenaCanvas = document.getElementById("arenaCanvas");')]
+
+    parity_script = tmp_path / "shannon_py_js_parity.js"
+    parity_script.write_text(
+        """
 const document = {
   createElement: () => ({ width: 0, height: 0, getContext: () => ({
     createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }),
     putImageData: () => {}
-  })}),
-  getElementById: () => ({ value: "4a", textContent: "", classList: { toggle: () => {} }, innerHTML: "", appendChild: () => {} }),
-  querySelectorAll: () => []
+  })})
 };
-function syncControlsFromState() {}
 """
-            + kernel_js
-            + """
-const oneLight = [{ x: 60, y: 50, intensity: 10, falloff: 15, active: true }];
-applyVehicleArchetype("4a");
-let x = 35.0, y = 44.0, h = 0.0;
-for (let step = 0; step < 200; step++) {
-  const kin = memorylessKinematics(x, y, h, state.params, oneLight, 100, 100, true);
-  h += kin.turnRate * 0.05;
-  x = ((x + kin.speed * Math.cos(h) * 0.05) % 100 + 100) % 100;
-  y = ((y + kin.speed * Math.sin(h) * 0.05) % 100 + 100) % 100;
-}
-console.log(JSON.stringify({ x, y, h }));
+        + kernel_js
+        + f"""
+const B = {json.dumps(b_mat)};
+const unitNames = {json.dumps(feat_names)};
+const spec = {{ id: "v5_moth", focalSpecies: "Vehicle 5: Moth", unitNames }};
+const particles = B.map(row => ({{
+  experimentId: "v5_moth",
+  speciesName: "Vehicle 5: Moth",
+  isEnvTarget: false,
+  bits: Uint8Array.from(row),
+  levels: {{}}
+}}));
+const jsSnap = computeShannonSnapshot(spec, particles, null, null, 0);
+console.log(JSON.stringify({{
+  jointEntropyBits: jsSnap.jointEntropyBits,
+  marginalEntropySumBits: jsSnap.marginalEntropySumBits,
+  totalCorrelationBits: jsSnap.totalCorrelationBits
+}}));
 """,
-            encoding="utf-8",
-        )
-        run_js = subprocess.run([node_bin, str(parity_file)], capture_output=True, text=True)
-        assert run_js.returncode == 0, run_js.stderr
-        js_pose = json.loads(run_js.stdout.strip())
-
-        w1 = load_world(ONE_LIGHT)
-        v4a_det = copy.deepcopy(load_definition(VEHICLE4A))
-        v4a_det.general.noise_std = 0.0
-        veh = Vehicle(v4a_det, 35.0, 44.0, 0.0, dt=0.05, seed=0)
-        rng = np.random.default_rng(0)
-        for _ in range(200):
-            readings = {
-                name: float(w1.stimulus_at(stim, sx, sy))
-                for name, stim, sx, sy in veh.sensor_points()
-            }
-            veh.step(readings, 0.05, rng)
-            w1.arena.apply_edges(veh)
-
-        assert js_pose["x"] == pytest.approx(veh.x, abs=1e-10)
-        assert js_pose["y"] == pytest.approx(veh.y, abs=1e-10)
-        assert js_pose["h"] == pytest.approx(veh.heading, abs=1e-10)
-
-
-def test_monograph_readme_showcase_media_contract():
-    assert MONOGRAPH_README.is_file()
-    md = MONOGRAPH_README.read_text(encoding="utf-8")
-    expected_media = (
-        "media/strogatz_atlas.png",
-        "media/orbiter.gif",
-        "media/ftle_swarm.gif",
-        "media/plasticity.gif",
-        "media/daydreamer.gif",
-        "media/act1_polar_phase_portraits.png",
-        "media/act2_lagrangian_chaos_ftle.png",
-        "media/act3_hysteresis_and_plasticity.png",
-        "media/act4_neural_criticality.png",
+        encoding="utf-8",
     )
-    for asset in expected_media:
-        assert asset in md, f"Missing showcase asset reference {asset}"
-    assert "explorer.html" in md
-    assert "python -m braitenberg.dynamics" in md
-    assert "w_c = 0.7" in md
+    res = subprocess.run([node_bin, str(parity_script)], capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    js_snap = json.loads(res.stdout.strip())
+
+    assert js_snap["jointEntropyBits"] == pytest.approx(py_snap["joint_entropy_bits"], abs=1e-12)
+    assert js_snap["marginalEntropySumBits"] == pytest.approx(py_snap["marginal_entropy_sum_bits"], abs=1e-12)
+    assert js_snap["totalCorrelationBits"] == pytest.approx(py_snap["total_correlation_bits"], abs=1e-12)
 
