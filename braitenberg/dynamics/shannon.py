@@ -120,6 +120,73 @@ EXPERIMENTS: dict[str, ExperimentSpec] = {
     ),
 }
 
+PHASE_EXPERIMENTS: dict[str, ExperimentSpec] = {
+    "v2a_fear": ExperimentSpec(
+        experiment_id="v2a_fear",
+        title="Vehicle 2a: Fear",
+        subtitle="Repulsive Cylindrical (r, ψ) Scattering, Turn-Rate Profile & Rutherford Deflection",
+        scenario_path="scenarios/vehicle2-fear-and-aggression.yaml",
+        focal_vehicle_path="vehicles/vehicle2a-fear.yaml",
+        phase_axes=("r", "psi"),
+    ),
+    "v3a_love": ExperimentSpec(
+        experiment_id="v3a_love",
+        title="Vehicle 3a: Love",
+        subtitle="Stable Arrest Attractor (ψ = 0, v → 0), Off-Axis Saddles & Equilibrium Distance r*(I₀)",
+        scenario_path="scenarios/vehicle3-love-and-explorer.yaml",
+        focal_vehicle_path="vehicles/vehicle3a-love.yaml",
+        phase_axes=("r", "psi"),
+    ),
+    "v4a_orbiter": ExperimentSpec(
+        experiment_id="v4a_orbiter",
+        title="Vehicle 4a: Orbiter",
+        subtitle="Supercritical Cylindrical Limit Cycle, Peak Bifurcation, 3-Lamp FTLE Ridges & Poincaré Map",
+        scenario_path="scenarios/dynamics-orbiter-swarm.yaml",
+        focal_vehicle_path="vehicles/vehicle4a-orbiter.yaml",
+        phase_axes=("r", "psi"),
+    ),
+    "v5_moth": ExperimentSpec(
+        experiment_id="v5_moth",
+        title="Vehicle 5: Moth",
+        subtitle="Irreversible Burn-Latch Fold Catastrophe & Pre/Post-Burn Topological Phase Flip",
+        scenario_path="scenarios/vehicle5-moth.yaml",
+        focal_vehicle_path="vehicles/vehicle5-moth.yaml",
+        phase_axes=("r", "dr"),
+    ),
+    "v5_forager": ExperimentSpec(
+        experiment_id="v5_forager",
+        title="Vehicle 5: Forager",
+        subtitle="Slow–Fast (r, E) Relaxation Limit Cycle, Arena Rosette & Hysteresis Duty Cycle",
+        scenario_path="scenarios/vehicle5-forager.yaml",
+        focal_vehicle_path="vehicles/vehicle5-forager.yaml",
+        phase_axes=("r", "energy"),
+    ),
+    "v7_wary_moth": ExperimentSpec(
+        experiment_id="v7_wary_moth",
+        title="Vehicle 7: Wary Moth",
+        subtitle="Hebbian Mnemotrix Bifurcation ($w_c = 0.7$), Hot/Cold Extinction & Approach Envelope",
+        scenario_path="scenarios/vehicle7-wary-moth.yaml",
+        focal_vehicle_path="vehicles/vehicle7-wary-moth.yaml",
+        phase_axes=("r_red", "w_red"),
+    ),
+    "v11_cautious_driver": ExperimentSpec(
+        experiment_id="v11_cautious_driver",
+        title="Vehicle 11: Cautious Driver",
+        subtitle="Ergotrix Temporal Sequence Staircases ($w_c = 0.7$), Preemptive Braking & 3×3 Synaptic Matrix",
+        scenario_path="scenarios/vehicle11-cautious-driver.yaml",
+        focal_vehicle_path="vehicles/vehicle11-cautious-driver.yaml",
+        phase_axes=("d_line", "v"),
+    ),
+    "v12_daydreamer": ExperimentSpec(
+        experiment_id="v12_daydreamer",
+        title="Vehicle 12: Daydreamer",
+        subtitle="Caudate Homeostatic Criticality, Cortical Mandala Z(t), Idea Cascade & Thought Loops",
+        scenario_path="scenarios/vehicle12-daydreamer.yaml",
+        focal_vehicle_path="vehicles/vehicle12-daydreamer.yaml",
+        phase_axes=("Re(Z)", "Im(Z)"),
+    ),
+}
+
 _DEFINITION_CACHE: dict[Path, VehicleDefinition] = {}
 
 
@@ -210,8 +277,11 @@ def _resolve_definition_arg(focal_definition) -> VehicleDefinition:
     if isinstance(focal_definition, ExperimentSpec):
         return _cached_load_definition(focal_definition.focal_vehicle_path)
     if isinstance(focal_definition, (str, Path)):
-        if isinstance(focal_definition, str) and focal_definition in EXPERIMENTS:
-            return _cached_load_definition(EXPERIMENTS[focal_definition].focal_vehicle_path)
+        if isinstance(focal_definition, str):
+            if focal_definition in EXPERIMENTS:
+                return _cached_load_definition(EXPERIMENTS[focal_definition].focal_vehicle_path)
+            if focal_definition in PHASE_EXPERIMENTS:
+                return _cached_load_definition(PHASE_EXPERIMENTS[focal_definition].focal_vehicle_path)
         return _cached_load_definition(focal_definition)
     raise AxiomViolationError(f"Unsupported focal_definition type: {type(focal_definition)!r}")
 
@@ -249,10 +319,17 @@ _CANONICAL_SIG_CACHE: dict[tuple, ExperimentSpec] | None = None
 def _match_canonical_spec(definition: VehicleDefinition) -> ExperimentSpec:
     global _CANONICAL_SIG_CACHE
     if _CANONICAL_SIG_CACHE is None:
-        _CANONICAL_SIG_CACHE = {
+        cache: dict[tuple, ExperimentSpec] = {
             connectome_signature(_cached_load_definition(sp.focal_vehicle_path)): sp
-            for sp in EXPERIMENTS.values()
+            for sp in PHASE_EXPERIMENTS.values()
         }
+        cache.update(
+            {
+                connectome_signature(_cached_load_definition(sp.focal_vehicle_path)): sp
+                for sp in EXPERIMENTS.values()
+            }
+        )
+        _CANONICAL_SIG_CACHE = cache
     sig = connectome_signature(definition)
     if sig in _CANONICAL_SIG_CACHE:
         return _CANONICAL_SIG_CACHE[sig]
@@ -268,6 +345,20 @@ def _match_canonical_spec(definition: VehicleDefinition) -> ExperimentSpec:
 
 
 def _resolve_single_spec(spec_or_specs) -> ExperimentSpec:
+    if getattr(spec_or_specs, "comparative_synthesis", False) or getattr(
+        spec_or_specs, "series", None
+    ) == "phase_atlas":
+        raise AxiomViolationError(
+            "Axiom 1 violation: comparative phase_atlas plates synthesize multiple vehicles "
+            "and must not be treated as single-experiment plates."
+        )
+    if isinstance(spec_or_specs, dict) and (
+        spec_or_specs.get("comparative_synthesis") or spec_or_specs.get("series") == "phase_atlas"
+    ):
+        raise AxiomViolationError(
+            "Axiom 1 violation: comparative phase_atlas metadata cannot pass single-experiment validation."
+        )
+
     if isinstance(spec_or_specs, ExperimentSpec):
         if (
             not spec_or_specs.experiment_id
@@ -283,11 +374,14 @@ def _resolve_single_spec(spec_or_specs) -> ExperimentSpec:
             raise AxiomViolationError(
                 f"Axiom 1 violation: expected strictly one experiment ID, got {spec_or_specs!r}"
             )
-        if key not in EXPERIMENTS:
-            raise AxiomViolationError(
-                f"Unknown experiment_id {key!r}; valid canonical IDs are {list(EXPERIMENTS)}"
-            )
-        return EXPERIMENTS[key]
+        if key in EXPERIMENTS:
+            return EXPERIMENTS[key]
+        if key in PHASE_EXPERIMENTS:
+            return PHASE_EXPERIMENTS[key]
+        valid_ids = list(dict.fromkeys((*EXPERIMENTS.keys(), *PHASE_EXPERIMENTS.keys())))
+        raise AxiomViolationError(
+            f"Unknown experiment_id {key!r}; valid canonical IDs are {valid_ids}"
+        )
 
     if isinstance(spec_or_specs, Iterable) and not isinstance(spec_or_specs, (bytes, dict)):
         items = list(spec_or_specs)

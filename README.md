@@ -239,12 +239,13 @@ An evolution file (`evolutions/`) names a vehicle, a world and the numbers that 
 
 ```
 pip install -e ".[analysis,record]"                                                  # matplotlib and pillow
-python -m braitenberg.dynamics poster --experiment v9_shy --neural-view composite --out-dir runs/
-python -m braitenberg.dynamics animate --experiment v5_moth --neural-view codebook --out-dir runs/
-python -m braitenberg.dynamics showcase --out-dir experiments/strogatz-dynamics/media
+python -m braitenberg.dynamics poster --series phase-portraits --experiment v4a_orbiter --out-dir runs/
+python -m braitenberg.dynamics poster --series tripanels --experiment v9_shy --neural-view composite --out-dir runs/
+python -m braitenberg.dynamics poster --series atlas --act atlas --out-dir runs/
+python -m braitenberg.dynamics showcase --out-dir experiments/strogatz-dynamics/media --skip-existing
 ```
 
-`braitenberg.dynamics` characterizes isolated single-species experiments (`v4a_orbiter`, `v5_moth`, `v5_forager`, `v7_wary_moth`, `v9_shy`, `v12_daydreamer`) across synchronized Tri-Panel views — physical arena and Finite-Time Lyapunov Exponent ridges, geometric phase space, and a lossless Shannon ensemble nervous system (`--neural-view composite|codebook|entropy|raster`) — without opening a window. See [specs/dynamics.md](specs/dynamics.md).
+`braitenberg.dynamics` renders three visual series without opening a window: pure single-vehicle four-panel phase portraits (`--series phase-portraits`, eight vehicles from `v2a_fear` to `v12_daydreamer`), synchronized swarm Tri-Panels uniting physical flow, phase space and a lossless Shannon ensemble nervous system (`--series tripanels`, `--neural-view composite|codebook|entropy|raster`), and the comparative four-act Strogatz phase-space atlas and animations (`--series atlas`). Every poster supports `--theme cosmic|textbook` and `--aspect 16:9|1:1|9:16`. See [specs/dynamics.md](specs/dynamics.md).
 
 A simulation is built from three kinds of YAML files: worlds (`worlds/`), vehicle definitions (`vehicles/`) and scenarios that combine them (`scenarios/`). See [specs/scenarios.md](specs/scenarios.md).
 
@@ -253,7 +254,7 @@ A simulation is built from three kinds of YAML files: worlds (`worlds/`), vehicl
 Explorations outside the simulator, each in its own folder under `experiments/` with a README:
 
 - [A CSCG learns the traffic light](experiments/cscg/README.md): a clone-structured cognitive graph learns the sequence the Vehicle 11 cautious driver learns with Ergotrix wires, and also when each color will change.
-- [Synthetic psychology as nonlinear dynamics & Shannon coding](experiments/strogatz-dynamics/README.md): six single-species Tri-Panel experiments uniting phase portraits and FTLE ridges with Joint Codebook rings, Watanabe synergy, mutual information and sorted microstate bit-rasters, plus an offline interactive browser lab ([`explorer.html`](experiments/strogatz-dynamics/explorer.html)) and `python -m braitenberg.dynamics`.
+- [Synthetic psychology through phase space & Shannon coding](experiments/strogatz-dynamics/README.md): eight single-vehicle deep phase portraits, six Shannon × Strogatz swarm Tri-Panels, and the comparative four-act phase-space atlas (`strogatz_atlas`, `act1..4`), plus an offline interactive browser lab ([`explorer.html`](experiments/strogatz-dynamics/explorer.html)) and `python -m braitenberg.dynamics`.
 
 ## Images for the specs
 

@@ -37,6 +37,32 @@ CANONICAL_EXPERIMENTS: tuple[tuple[str, str, str, str], ...] = (
     ("v4a_orbiter", "dynamics-orbiter-swarm.yaml", "4a", "Orbiter"),
 )
 
+PHASE_PORTRAIT_EXPERIMENT_IDS: tuple[str, ...] = (
+    "v2a_fear",
+    "v3a_love",
+    "v4a_orbiter",
+    "v5_moth",
+    "v5_forager",
+    "v7_wary_moth",
+    "v11_cautious_driver",
+    "v12_daydreamer",
+)
+
+PHASE_ATLAS_POSTER_STEMS: tuple[str, ...] = (
+    "strogatz_atlas",
+    "act1_polar_phase_portraits",
+    "act2_lagrangian_chaos_ftle",
+    "act3_hysteresis_and_plasticity",
+    "act4_neural_criticality",
+)
+
+PHASE_ATLAS_SCENES: tuple[str, ...] = (
+    "orbiter",
+    "ftle_swarm",
+    "plasticity",
+    "daydreamer",
+)
+
 
 def _node_binary() -> str | None:
     return shutil.which("node") or (
@@ -464,22 +490,69 @@ def test_monograph_readme_showcase_media_and_axiomatic_purity():
     assert MONOGRAPH_README.is_file()
     md = MONOGRAPH_README.read_text(encoding="utf-8")
 
-    # All 6 pure 1-experiment-per-file GIFs, Cosmic 4K plates, Textbook 4K plates, and MP4 cuts
+    expected_media_targets: set[str] = set()
+
+    def _assert_embedded(rel_path: str) -> None:
+        expected_media_targets.add(rel_path)
+        pattern = rf"!\[[^\]]+\]\({re.escape(rel_path)}\)"
+        assert re.search(pattern, md), f"Expected embedded image ![(...)]({rel_path}) in README.md"
+
+    def _assert_linked(rel_path: str) -> None:
+        expected_media_targets.add(rel_path)
+        assert f"]({rel_path})" in md, f"Expected markdown link to {rel_path} in README.md"
+
+    # Series I — Pure Axiom-1 Deep Phase Portraits (media/phase_portraits/, 16 4K plates)
+    for exp_id in PHASE_PORTRAIT_EXPERIMENT_IDS:
+        _assert_embedded(f"media/phase_portraits/{exp_id}_phase.png")
+        _assert_linked(f"media/phase_portraits/{exp_id}_phase_textbook.png")
+
+    # Series II — Pure Axiom-1 Shannon x Strogatz Tri-Panels (media/, 18 plates & GIFs + MP4s)
     for exp_id, scenario_name, _, _ in CANONICAL_EXPERIMENTS:
-        assert f"media/{exp_id}.gif" in md, f"Missing GIF media/{exp_id}.gif in README.md"
-        assert f"media/{exp_id}_tripanel.png" in md, f"Missing 4K plate media/{exp_id}_tripanel.png"
-        assert f"media/{exp_id}_tripanel_textbook.png" in md, f"Missing textbook plate for {exp_id}"
+        _assert_embedded(f"media/{exp_id}.gif")
+        _assert_embedded(f"media/{exp_id}_tripanel.png")
+        _assert_linked(f"media/{exp_id}_tripanel_textbook.png")
         assert f"media/mp4/{exp_id}_" in md, f"Missing social MP4 reference for {exp_id}"
         assert scenario_name in md, f"Missing swarm scenario link {scenario_name}"
 
-    # Zero legacy cross-experiment mashup plates in README.md
-    for legacy_mashup in (
-        "media/strogatz_atlas.png",
-        "media/plasticity.gif",
-        "media/act1_polar_phase_portraits.png",
-        "media/act3_hysteresis_and_plasticity.png",
+    # Series III — Comparative Synthesis Phase-Space Atlas (media/phase_atlas/, 14 plates & GIFs + MP4s)
+    for stem in PHASE_ATLAS_POSTER_STEMS:
+        _assert_embedded(f"media/phase_atlas/{stem}.png")
+        _assert_linked(f"media/phase_atlas/{stem}_textbook.png")
+    for scene in PHASE_ATLAS_SCENES:
+        _assert_embedded(f"media/phase_atlas/{scene}.gif")
+        assert (
+            f"media/mp4/phase_atlas/{scene}_" in md
+        ), f"Missing phase_atlas MP4 reference for {scene}"
+
+    assert len(expected_media_targets) == 48
+
+    # Zero un-namespaced root comparative plates/GIFs (they belong strictly under media/phase_atlas/)
+    for unnamespaced_legacy in (
+        *(f"media/{stem}.png" for stem in PHASE_ATLAS_POSTER_STEMS),
+        *(f"media/{stem}_textbook.png" for stem in PHASE_ATLAS_POSTER_STEMS),
+        *(f"media/{scene}.gif" for scene in PHASE_ATLAS_SCENES),
     ):
-        assert legacy_mashup not in md, f"Legacy mashup asset {legacy_mashup} must not appear in README.md"
+        assert (
+            unnamespaced_legacy not in md
+        ), f"Un-namespaced atlas path {unnamespaced_legacy} must live under media/phase_atlas/"
+
+    # Exact 1-to-1 media link hygiene & repository relative-link existence check
+    all_md_targets = re.findall(r"!?\[[^\]]*\]\(([^)]+)\)", md)
+    media_targets_in_md = {t for t in all_md_targets if t.startswith("media/")}
+    assert media_targets_in_md == expected_media_targets
+
+    for media_rel in sorted(expected_media_targets):
+        media_file = (MONOGRAPH_README.parent / media_rel).resolve()
+        assert media_file.is_file() and media_file.stat().st_size > 0, (
+            f"Missing or empty showcase media asset on disk: {media_rel} -> {media_file}"
+        )
+
+    for target in set(all_md_targets) - media_targets_in_md:
+        assert not target.startswith(("http://", "https://")), f"Unexpected external link {target}"
+        clean_target = target.split("#", 1)[0]
+        if clean_target:
+            resolved = (MONOGRAPH_README.parent / clean_target).resolve()
+            assert resolved.exists(), f"Broken relative link in README.md: {target} -> {resolved}"
 
     for landmark in (
         "Axiom 1",
@@ -489,10 +562,18 @@ def test_monograph_readme_showcase_media_and_axiomatic_purity():
         "awake",
         "0.00\\text{ bits}",
         "w_c = 0.7",
+        "Ergotrix",
+        "Kuramoto",
         "explorer.html",
         "python -m braitenberg.dynamics",
+        "--series",
+        "tripanels",
+        "phase-portraits",
+        "atlas",
+        "`D`",
+        "`N`",
     ):
-        assert landmark in md, f"Missing theoretical landmark {landmark!r} in README.md"
+        assert landmark in md, f"Missing theoretical or CLI landmark {landmark!r} in README.md"
 
 
 @pytest.mark.parametrize("exp_id,fname,expected_type,expected_name", CANONICAL_EXPERIMENTS)

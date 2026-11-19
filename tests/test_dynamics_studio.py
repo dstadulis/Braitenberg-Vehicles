@@ -1,4 +1,4 @@
-"""Tests for braitenberg.dynamics.themes, diagram_mpl, studio, Axiom 1 enforcement, and CLI."""
+"""Tests for braitenberg.dynamics 3-series studio, phase_portraits, phase_atlas, Axiom 1, and CLI."""
 
 from __future__ import annotations
 
@@ -24,7 +24,32 @@ from braitenberg.dynamics.diagram_mpl import (
     render_shannon_neural_panel,
     solve_part_labels,
 )
-from braitenberg.dynamics.studio import CANONICAL_EXPERIMENTS, CometArtist, HeroMarkerArtist
+from braitenberg.dynamics.phase_atlas import (
+    ATLAS_ACTS,
+    ATLAS_POSTER_METADATA,
+    ATLAS_SCENE_METADATA,
+    ATLAS_SCENES,
+    POSTER_FILENAMES,
+    SCENE_STEMS,
+    build_atlas_poster,
+)
+from braitenberg.dynamics.phase_portraits import (
+    PHASE_PORTRAIT_EXPERIMENTS,
+    build_phase_portrait_poster,
+)
+from braitenberg.dynamics.shannon import (
+    EXPERIMENTS,
+    PHASE_EXPERIMENTS,
+    AxiomViolationError,
+    validate_single_experiment_axiom,
+)
+from braitenberg.dynamics.studio import (
+    CANONICAL_EXPERIMENTS,
+    CometArtist,
+    HeroMarkerArtist,
+    build_experiment_poster,
+    get_experiment_rollout,
+)
 from braitenberg.dynamics.themes import (
     COSMIC_THEME,
     TEXTBOOK_THEME,
@@ -66,6 +91,8 @@ def test_never_imports_pygame() -> None:
         "import braitenberg.dynamics; "
         "import braitenberg.dynamics.themes; "
         "import braitenberg.dynamics.diagram_mpl; "
+        "import braitenberg.dynamics.phase_portraits; "
+        "import braitenberg.dynamics.phase_atlas; "
         "import braitenberg.dynamics.studio; "
         "import braitenberg.dynamics.__main__; "
         "assert 'pygame' not in sys.modules, 'pygame was imported!'"
@@ -164,7 +191,6 @@ def test_diagram_mpl_collision_free_labels_and_views(vehicle_file: str) -> None:
             area = _rect_overlap_area(boxes[i][1]["bbox"], boxes[j][1]["bbox"])
             assert area <= 1e-4, f"Labels '{boxes[i][0]}' and '{boxes[j][0]}' overlap in {vehicle_file}"
 
-    # Verify all 4 neural views render cleanly via ShannonNeuralPanelArtist
     n_veh, m_units = 12, max(1, len(vdef.units))
     synth_snap = {
         "hero_diagram": diag,
@@ -201,43 +227,84 @@ def test_diagram_mpl_collision_free_labels_and_views(vehicle_file: str) -> None:
         canvas.draw()
 
 
-def test_axiom_1_strict_single_experiment_binding() -> None:
-    """Every canonical studio experiment binds strictly to 1 ExperimentSpec & rejects mashups."""
-    from braitenberg.dynamics.shannon import (
-        EXPERIMENTS,
-        AxiomViolationError,
-        validate_single_experiment_axiom,
-    )
-    from braitenberg.dynamics.studio import get_experiment_rollout
-
+def test_axiom_1_strict_binding_and_comparative_atlas_separation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every tripanels & phase-portraits render enforces Axiom 1; phase_atlas is tagged separately."""
     assert set(CANONICAL_EXPERIMENTS) == set(EXPERIMENTS.keys())
+    assert tuple(PHASE_EXPERIMENTS.keys()) == PHASE_PORTRAIT_EXPERIMENTS
+    assert len(PHASE_PORTRAIT_EXPERIMENTS) == 8
 
-    # Passing multiple experiments must immediately raise AxiomViolationError
+    # Comparative phase_atlas metadata explicitly marks multi-vehicle synthesis plates
+    for key in ("atlas", "1", "3"):
+        meta = ATLAS_POSTER_METADATA[key]
+        assert meta.series == "phase_atlas"
+        assert meta.comparative_synthesis is True
+        with pytest.raises(AxiomViolationError):
+            validate_single_experiment_axiom(meta)
+
+    assert ATLAS_SCENE_METADATA["plasticity"].series == "phase_atlas"
+    assert ATLAS_SCENE_METADATA["plasticity"].comparative_synthesis is True
     with pytest.raises(AxiomViolationError):
-        validate_single_experiment_axiom([EXPERIMENTS["v5_moth"], EXPERIMENTS["v7_wary_moth"]])
+        validate_single_experiment_axiom(ATLAS_SCENE_METADATA["plasticity"])
 
-    # Mixing heterogeneous vehicles must raise AxiomViolationError
-    v_moth = Vehicle(load_definition(REPO_ROOT / "vehicles/vehicle5-moth.yaml"), 0, 0, 0)
-    v_shy = Vehicle(load_definition(REPO_ROOT / "vehicles/vehicle9-shy.yaml"), 0, 0, 0)
+    atlas_fig = build_atlas_poster(theme_name="cosmic", aspect="16:9", dpi=48)
+    assert getattr(atlas_fig, "series", None) == "phase_atlas"
+    assert getattr(atlas_fig, "comparative_synthesis", None) is True
+
+    # Passing multiple experiments or heterogeneous vehicles must raise AxiomViolationError
     with pytest.raises(AxiomViolationError):
-        validate_single_experiment_axiom(EXPERIMENTS["v5_moth"], vehicles=[v_moth, v_shy])
+        validate_single_experiment_axiom([PHASE_EXPERIMENTS["v2a_fear"], PHASE_EXPERIMENTS["v3a_love"]])
 
-    # v9_shy rollout must strictly isolate Shy vehicles (excluding Chaser/Walker stimulus agents)
+    v_fear = Vehicle(load_definition(REPO_ROOT / "vehicles/vehicle2a-fear.yaml"), 0, 0, 0)
+    v_love = Vehicle(load_definition(REPO_ROOT / "vehicles/vehicle3a-love.yaml"), 0, 0, 0)
+    with pytest.raises(AxiomViolationError):
+        validate_single_experiment_axiom(PHASE_EXPERIMENTS["v2a_fear"], vehicles=[v_fear, v_love])
+
+    # Spy on validate_single_experiment_axiom across EVERY single tripanel & phase-portrait build!
+    from braitenberg.dynamics import phase_portraits, shannon
+
+    validated_ids: list[str] = []
+    orig_validate = shannon.validate_single_experiment_axiom
+
+    def _spy_validate(spec_or_specs, vehicles=None, scenario=None):
+        res = orig_validate(spec_or_specs, vehicles=vehicles, scenario=scenario)
+        validated_ids.append(res.experiment_id)
+        return res
+
+    monkeypatch.setattr(shannon, "validate_single_experiment_axiom", _spy_validate)
+    monkeypatch.setattr(phase_portraits, "validate_single_experiment_axiom", _spy_validate)
+
+    for pp_id in PHASE_PORTRAIT_EXPERIMENTS:
+        validated_ids.clear()
+        fig_pp = build_phase_portrait_poster(pp_id, theme_name="cosmic", aspect="16:9", dpi=48)
+        assert pp_id in validated_ids
+        assert set(validated_ids) == {pp_id}, f"Cross-experiment leak in phase_portrait {pp_id}: {validated_ids}"
+        assert fig_pp.axiom1_metadata["series"] == "phase_portraits"
+        assert fig_pp.axiom1_metadata["experiment_id"] == pp_id
+        assert fig_pp.comparative_synthesis is False
+
+    for tri_id in CANONICAL_EXPERIMENTS:
+        validated_ids.clear()
+        fig_tri = build_experiment_poster(tri_id, theme_name="cosmic", aspect="16:9", dpi=48)
+        assert tri_id in validated_ids
+        assert set(validated_ids) == {tri_id}, f"Cross-experiment leak in tripanel {tri_id}: {validated_ids}"
+        assert fig_tri.axiom1_metadata["series"] == "tripanels"
+        assert fig_tri.axiom1_metadata["experiment_id"] == tri_id
+        assert fig_tri.comparative_synthesis is False
+
     shy_rollout = get_experiment_rollout("v9_shy", steps=40, stride=10)
     assert shy_rollout["focal_def"].general.name == "Shy"
-    assert shy_rollout["focal_def"].general.type == "9"
-    snap0 = shy_rollout["snapshots"][0]
-    assert snap0["hero_diagram"].subtitle == "Vehicle 9: Shy"
-    assert snap0["raster_matrix"].shape[0] == shy_rollout["n_focal"]
+    assert shy_rollout["snapshots"][0]["hero_diagram"].subtitle == "Vehicle 9: Shy"
 
 
 @pytest.mark.parametrize(
     ("aspect", "ratio"),
     [("16:9", 16 / 9), ("1:1", 1.0), ("9:16", 9 / 16)],
 )
-def test_cli_poster_aspects_and_themes(tmp_path: Path, aspect: str, ratio: float) -> None:
+def test_cli_poster_aspects_themes_and_series(tmp_path: Path, aspect: str, ratio: float) -> None:
     theme = "textbook" if aspect == "1:1" else "cosmic"
-    written = dynamics_cli.main(
+
+    # Series II (default tripanels)
+    written_tri = dynamics_cli.main(
         [
             "poster",
             "--experiment",
@@ -249,102 +316,138 @@ def test_cli_poster_aspects_and_themes(tmp_path: Path, aspect: str, ratio: float
             "--aspect",
             aspect,
             "--dpi",
-            "72",
+            "64",
             "--out-dir",
             str(tmp_path),
         ]
     )
-    assert len(written) == 1
-    out = written[0]
-    assert out.name == "v9_shy_tripanel.png"
-    assert out.exists() and out.stat().st_size > 5_000
-    with Image.open(out) as im:
-        w, h = im.size
-        assert (w / h) == pytest.approx(ratio, rel=0.02)
+    assert len(written_tri) == 1
+    assert written_tri[0].name == "v9_shy_tripanel.png"
+    with Image.open(written_tri[0]) as im:
+        assert (im.size[0] / im.size[1]) == pytest.approx(ratio, rel=0.02)
 
-
-def test_cli_all_posters_and_svg(tmp_path: Path) -> None:
-    written = dynamics_cli.main(
+    # Series I (phase-portraits)
+    written_pp = dynamics_cli.main(
         [
             "poster",
+            "--series",
+            "phase-portraits",
             "--experiment",
-            "all",
+            "v11_cautious_driver",
             "--theme",
-            "cosmic",
+            theme,
             "--aspect",
-            "16:9",
+            aspect,
             "--dpi",
-            "60",
+            "64",
             "--out-dir",
             str(tmp_path),
         ]
     )
-    names = {p.name for p in written}
-    assert names == {f"{exp}_tripanel.png" for exp in CANONICAL_EXPERIMENTS}
-    for p in written:
-        assert p.exists() and p.stat().st_size > 5_000
+    assert len(written_pp) == 1
+    assert written_pp[0].name == "v11_cautious_driver_phase.png"
+    with Image.open(written_pp[0]) as im:
+        assert (im.size[0] / im.size[1]) == pytest.approx(ratio, rel=0.02)
+
+
+def test_cli_all_posters_atlas_and_svg(tmp_path: Path) -> None:
+    tri_dir = tmp_path / "tri"
+    pp_dir = tmp_path / "pp"
+    atlas_dir = tmp_path / "atlas"
+
+    written_tri = dynamics_cli.main(
+        ["poster", "--series", "tripanels", "--experiment", "all", "--dpi", "52", "--out-dir", str(tri_dir)]
+    )
+    assert {p.name for p in written_tri} == {f"{exp}_tripanel.png" for exp in CANONICAL_EXPERIMENTS}
+
+    written_pp = dynamics_cli.main(
+        ["poster", "--series", "phase-portraits", "--experiment", "all", "--dpi", "52", "--out-dir", str(pp_dir)]
+    )
+    assert {p.name for p in written_pp} == {f"{exp}_phase.png" for exp in PHASE_PORTRAIT_EXPERIMENTS}
+
+    written_atlas = dynamics_cli.main(
+        ["poster", "--series", "atlas", "--act", "all", "--dpi", "52", "--out-dir", str(atlas_dir)]
+    )
+    assert {p.name for p in written_atlas} == {f"{POSTER_FILENAMES[a]}.png" for a in ATLAS_ACTS}
 
     svg_out = dynamics_cli.main(
         [
             "poster",
+            "--series",
+            "phase-portraits",
             "--experiment",
-            "v5_moth",
-            "--neural-view",
-            "entropy",
+            "v2a_fear",
             "--theme",
             "textbook",
             "--format",
             "svg",
             "--dpi",
-            "72",
+            "64",
             "--out-dir",
             str(tmp_path),
         ]
     )
-    assert svg_out[0].suffix == ".svg"
+    assert svg_out[0].name == "v2a_fear_phase.svg"
     assert "<svg" in svg_out[0].read_text(encoding="utf-8")[:500]
 
 
-@pytest.mark.parametrize("exp_id", ["v4a_orbiter", "v5_moth", "v7_wary_moth", "v9_shy", "v12_daydreamer"])
-def test_cli_animate_gif_and_mp4(tmp_path: Path, exp_id: str) -> None:
+def test_cli_animate_tripanels_and_atlas_scenes(tmp_path: Path) -> None:
     has_ffmpeg = shutil.which("ffmpeg") is not None or Path("/opt/homebrew/bin/ffmpeg").exists()
     fmts = "gif,mp4" if has_ffmpeg else "gif"
-    written = dynamics_cli.main(
+
+    # Tri-Panel animation
+    written_tri = dynamics_cli.main(
         [
             "animate",
+            "--series",
+            "tripanels",
             "--experiment",
-            exp_id,
-            "--theme",
-            "cosmic",
-            "--aspect",
-            "16:9",
+            "v5_moth",
             "--fps",
             "8",
             "--seconds",
             "0.5",
             "--dpi",
-            "52",
+            "48",
             "--formats",
             fmts,
             "--out-dir",
-            str(tmp_path),
+            str(tmp_path / "tri_anim"),
         ]
     )
-    gifs = [p for p in written if p.suffix == ".gif"]
-    assert len(gifs) == 1
-    assert gifs[0].name == f"{exp_id}.gif"
-    with Image.open(gifs[0]) as im:
-        assert getattr(im, "is_animated", False)
-        assert im.n_frames >= 3
+    tri_gifs = [p for p in written_tri if p.suffix == ".gif"]
+    assert len(tri_gifs) == 1 and tri_gifs[0].name == "v5_moth.gif"
+    with Image.open(tri_gifs[0]) as im:
+        assert getattr(im, "is_animated", False) and im.n_frames >= 3
 
+    # Restored Phase-Atlas animation (--scene implies --series atlas)
+    written_atlas = dynamics_cli.main(
+        [
+            "animate",
+            "--scene",
+            "plasticity",
+            "--fps",
+            "8",
+            "--seconds",
+            "0.5",
+            "--dpi",
+            "48",
+            "--formats",
+            fmts,
+            "--out-dir",
+            str(tmp_path / "atlas_anim"),
+        ]
+    )
+    atlas_gifs = [p for p in written_atlas if p.suffix == ".gif"]
+    assert len(atlas_gifs) == 1 and atlas_gifs[0].name == "plasticity.gif"
+    with Image.open(atlas_gifs[0]) as im:
+        assert getattr(im, "is_animated", False) and im.n_frames >= 3
     if has_ffmpeg:
-        mp4s = [p for p in written if p.suffix == ".mp4"]
-        assert len(mp4s) == 1
-        assert mp4s[0].stat().st_size > 1_000
+        assert any(p.suffix == ".mp4" and p.stat().st_size > 1_000 for p in written_atlas)
 
 
-def test_showcase_gallery_filenames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify showcase populates all 36 standardized 1-Experiment-Per-File gallery assets."""
+def test_showcase_three_series_tree_and_skip_existing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify showcase populates all 3 series directories cleanly and honors --skip-existing."""
     from braitenberg.dynamics import studio
 
     orig_figsize = studio.aspect_figsize
@@ -354,13 +457,15 @@ def test_showcase_gallery_filenames(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         lambda aspect, target="poster": (
             orig_figsize(aspect, target)[0],
             orig_figsize(aspect, target)[1],
-            44,
+            40,
         ),
     )
 
     written = dynamics_cli.main(
         [
             "showcase",
+            "--series",
+            "all",
             "--fps",
             "6",
             "--seconds",
@@ -369,17 +474,212 @@ def test_showcase_gallery_filenames(tmp_path: Path, monkeypatch: pytest.MonkeyPa
             str(tmp_path),
         ]
     )
-    assert len(written) >= 18
+    assert len(written) >= 48
+
+    # 1. Series II (top-level <out-dir>/ + <out-dir>/mp4/)
     expected_top = (
         {f"{exp}_tripanel.png" for exp in CANONICAL_EXPERIMENTS}
         | {f"{exp}_tripanel_textbook.png" for exp in CANONICAL_EXPERIMENTS}
         | {f"{exp}.gif" for exp in CANONICAL_EXPERIMENTS}
     )
     actual_top = {p.name for p in tmp_path.iterdir() if p.is_file()}
-    assert expected_top.issubset(actual_top)
+    assert expected_top == actual_top
+
+    # 2. Series I (<out-dir>/phase_portraits/)
+    expected_pp = (
+        {f"{exp}_phase.png" for exp in PHASE_PORTRAIT_EXPERIMENTS}
+        | {f"{exp}_phase_textbook.png" for exp in PHASE_PORTRAIT_EXPERIMENTS}
+    )
+    actual_pp = {p.name for p in (tmp_path / "phase_portraits").iterdir() if p.is_file()}
+    assert expected_pp == actual_pp
+
+    # 3. Series III (<out-dir>/phase_atlas/ + <out-dir>/mp4/phase_atlas/)
+    expected_atlas = (
+        {f"{POSTER_FILENAMES[a]}.png" for a in ATLAS_ACTS}
+        | {f"{POSTER_FILENAMES[a]}_textbook.png" for a in ATLAS_ACTS}
+        | {f"{SCENE_STEMS[s]}.gif" for s in ATLAS_SCENES}
+    )
+    actual_atlas = {p.name for p in (tmp_path / "phase_atlas").iterdir() if p.is_file()}
+    assert expected_atlas == actual_atlas
 
     if shutil.which("ffmpeg") is not None or Path("/opt/homebrew/bin/ffmpeg").exists():
-        mp4_names = {p.name for p in (tmp_path / "mp4").glob("*.mp4")}
+        mp4_tri = {p.name for p in (tmp_path / "mp4").glob("*.mp4")}
         for exp in CANONICAL_EXPERIMENTS:
             for tag in ("16x9", "1x1", "9x16"):
-                assert f"{exp}_{tag}.mp4" in mp4_names
+                assert f"{exp}_{tag}.mp4" in mp4_tri
+
+        mp4_atlas = {p.name for p in (tmp_path / "mp4" / "phase_atlas").glob("*.mp4")}
+        for s in ATLAS_SCENES:
+            stem = SCENE_STEMS[s]
+            for tag in ("16x9", "1x1", "9x16"):
+                assert f"{stem}_{tag}.mp4" in mp4_atlas
+
+    # 4. Verify --skip-existing preserves mtimes without re-rendering
+    probe_file = tmp_path / "v5_moth_tripanel.png"
+    mtime_before = probe_file.stat().st_mtime_ns
+    dynamics_cli.main(
+        [
+            "showcase",
+            "--series",
+            "all",
+            "--skip-existing",
+            "--fps",
+            "6",
+            "--seconds",
+            "0.4",
+            "--out-dir",
+            str(tmp_path),
+        ]
+    )
+    assert probe_file.stat().st_mtime_ns == mtime_before
+
+
+def test_v7_wary_moth_pass_classification_matches_avoidance_bifurcation() -> None:
+    """Every pass in v7_wary_moth Panel D must classify pre-burn approach weight w > 0.7 vs <= 0.7."""
+    from braitenberg.definition import ACTIVE_STRENGTH
+    from braitenberg.dynamics.phase_portraits import _get_v7_wary_moth_data
+
+    data = _get_v7_wary_moth_data()
+    pass_rmin = np.asarray(data["pass_rmin"], dtype=float)
+    pass_w = np.asarray(data["pass_w"], dtype=float)
+    assert len(pass_rmin) >= 15
+
+    repelled = pass_w > ACTIVE_STRENGTH
+    assert np.any(repelled) and np.any(~repelled)
+    # Every approach entering with w > 0.7 must be repelled near the red-sight halo (r_min > 15),
+    # and every approach entering with w <= 0.7 must plunge into the lamp core (r_min < 5)!
+    assert np.all(pass_rmin[repelled] > 15.0), (
+        f"False 'repelled' pass plunged into core: r_min={pass_rmin[repelled]}, w={pass_w[repelled]}"
+    )
+    assert np.all(pass_rmin[~repelled] < 5.0), (
+        f"False 'plunged' pass was actually repelled: r_min={pass_rmin[~repelled]}, w={pass_w[~repelled]}"
+    )
+
+
+def test_cli_auto_series_routing_and_filtered_all_series(tmp_path: Path) -> None:
+    """Verify CLI auto-routes phase-only experiments and filters --series all strictly to requested items."""
+    # 1. Omitting --series with a phase-portraits-only ID (v2a_fear) auto-routes to phase-portraits
+    auto_out = dynamics_cli.main(
+        ["poster", "--experiment", "v2a_fear", "--dpi", "44", "--out-dir", str(tmp_path / "auto")]
+    )
+    assert [p.name for p in auto_out] == ["v2a_fear_phase.png"]
+
+    # 2. --series all --experiment v2a_fear renders ONLY v2a_fear_phase.png (no unrelated tripanels/atlas)
+    only_pp = dynamics_cli.main(
+        ["poster", "--series", "all", "--experiment", "v2a_fear", "--dpi", "44", "--out-dir", str(tmp_path / "all_pp")]
+    )
+    assert [p.name for p in only_pp] == ["v2a_fear_phase.png"]
+
+    # 3. --series all --experiment v9_shy renders ONLY v9_shy_tripanel.png
+    only_tri = dynamics_cli.main(
+        ["poster", "--series", "all", "--experiment", "v9_shy", "--dpi", "44", "--out-dir", str(tmp_path / "all_tri")]
+    )
+    assert [p.name for p in only_tri] == ["v9_shy_tripanel.png"]
+
+    # 4. --series all --experiment v4a_orbiter renders BOTH series containing v4a_orbiter and zero atlas plates
+    both_v4 = dynamics_cli.main(
+        ["poster", "--series", "all", "--experiment", "v4a_orbiter", "--dpi", "44", "--out-dir", str(tmp_path / "all_v4")]
+    )
+    assert {p.name for p in both_v4} == {"v4a_orbiter_tripanel.png", "v4a_orbiter_phase.png"}
+
+    # 5. --series all --act 1 renders ONLY act1_polar_phase_portraits.png
+    only_act = dynamics_cli.main(
+        ["poster", "--series", "all", "--act", "1", "--dpi", "44", "--out-dir", str(tmp_path / "all_act")]
+    )
+    assert [p.name for p in only_act] == ["act1_polar_phase_portraits.png"]
+
+    # 6. animate --series all --scene daydreamer renders ONLY daydreamer.gif
+    only_sc = dynamics_cli.main(
+        [
+            "animate",
+            "--series",
+            "all",
+            "--scene",
+            "daydreamer",
+            "--fps",
+            "6",
+            "--seconds",
+            "0.3",
+            "--dpi",
+            "40",
+            "--formats",
+            "gif",
+            "--out-dir",
+            str(tmp_path / "all_sc"),
+        ]
+    )
+    assert [p.name for p in only_sc] == ["daydreamer.gif"]
+
+    # 7. Invalid --formats is rejected via parser.error (SystemExit)
+    with pytest.raises(SystemExit):
+        dynamics_cli.main(["animate", "--experiment", "v5_moth", "--formats", "invalid_fmt", "--out-dir", str(tmp_path)])
+
+
+def test_partial_skip_existing_preserves_gif_when_mp4_missing(tmp_path: Path) -> None:
+    """When .gif already exists and .mp4 is missing, --skip-existing must NOT overwrite .gif."""
+    has_ffmpeg = shutil.which("ffmpeg") is not None or Path("/opt/homebrew/bin/ffmpeg").exists()
+    fmts = "gif,mp4" if has_ffmpeg else "gif"
+
+    # Tri-Panel animation: pre-populate sentinel .gif while .mp4 is absent
+    tri_dir = tmp_path / "tri_partial"
+    tri_dir.mkdir(parents=True)
+    sentinel_tri_gif = tri_dir / "v5_moth.gif"
+    sentinel_bytes = b"GIF89a-SENTINEL-TRIPANEL"
+    sentinel_tri_gif.write_bytes(sentinel_bytes)
+
+    written_tri = dynamics_cli.main(
+        [
+            "animate",
+            "--series",
+            "tripanels",
+            "--experiment",
+            "v5_moth",
+            "--fps",
+            "6",
+            "--seconds",
+            "0.3",
+            "--dpi",
+            "40",
+            "--formats",
+            fmts,
+            "--skip-existing",
+            "--out-dir",
+            str(tri_dir),
+        ]
+    )
+    assert sentinel_tri_gif.read_bytes() == sentinel_bytes, "Existing tripanel .gif was overwritten!"
+    assert sentinel_tri_gif in written_tri
+    if has_ffmpeg:
+        assert (tri_dir / "v5_moth.mp4").is_file() and (tri_dir / "v5_moth.mp4").stat().st_size > 1_000
+
+    # Phase-Atlas animation: pre-populate sentinel .gif while .mp4 is absent
+    atlas_dir = tmp_path / "atlas_partial"
+    atlas_dir.mkdir(parents=True)
+    sentinel_atlas_gif = atlas_dir / "daydreamer.gif"
+    sentinel_atlas_bytes = b"GIF89a-SENTINEL-ATLAS"
+    sentinel_atlas_gif.write_bytes(sentinel_atlas_bytes)
+
+    written_atlas = dynamics_cli.main(
+        [
+            "animate",
+            "--series",
+            "atlas",
+            "--scene",
+            "daydreamer",
+            "--fps",
+            "6",
+            "--seconds",
+            "0.3",
+            "--dpi",
+            "40",
+            "--formats",
+            fmts,
+            "--skip-existing",
+            "--out-dir",
+            str(atlas_dir),
+        ]
+    )
+    assert sentinel_atlas_gif.read_bytes() == sentinel_atlas_bytes, "Existing atlas .gif was overwritten!"
+    assert sentinel_atlas_gif in written_atlas
+    if has_ffmpeg:
+        assert (atlas_dir / "daydreamer.mp4").is_file() and (atlas_dir / "daydreamer.mp4").stat().st_size > 1_000

@@ -26,6 +26,8 @@ __all__ = [
     "themes",
     "diagram_mpl",
     "studio",
+    "phase_portraits",
+    "phase_atlas",
     "shannon",
     "phase_plane",
     "lagrangian",

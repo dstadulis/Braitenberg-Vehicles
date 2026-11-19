@@ -1210,6 +1210,14 @@ def build_tripanel_figure(
         aspect=aspect,
     )
     _add_footer(fig, theme, experiment_id, rollout["n_focal"], aspect)
+    fig.axiom1_metadata = {  # type: ignore[attr-defined]
+        "series": "tripanels",
+        "experiment_id": spec.experiment_id,
+        "focal_vehicle_path": spec.focal_vehicle_path,
+        "comparative_synthesis": False,
+    }
+    fig.series = "tripanels"  # type: ignore[attr-defined]
+    fig.comparative_synthesis = False  # type: ignore[attr-defined]
 
     def update_frame(f_idx: int) -> None:
         clamped = int(np.clip(f_idx, 0, rollout["n_frames"] - 1))
@@ -1242,9 +1250,15 @@ def build_experiment_poster(
         return fig
 
 
+SERIES_CHOICES: tuple[str, ...] = ("tripanels", "phase-portraits", "atlas", "all")
+ANIM_SERIES_CHOICES: tuple[str, ...] = ("tripanels", "atlas", "all")
+
+
 def render_posters(
     *,
-    experiment: str = "all",
+    series: str | None = None,
+    experiment: str | None = None,
+    act: str | None = None,
     neural_view: str = "composite",
     theme: str = "cosmic",
     aspect: str = "16:9",
@@ -1252,27 +1266,119 @@ def render_posters(
     dpi: int | None = None,
     fmt: str = "png",
     suffix: str = "",
+    skip_existing: bool = False,
 ) -> list[Path]:
-    """Render static Tri-Panel poster(s) for one or all 6 canonical pure experiments."""
+    """Render static posters for ``tripanels``, ``phase-portraits``, ``atlas``, or ``all``."""
+    from braitenberg.dynamics.phase_portraits import (
+        PHASE_PORTRAIT_EXPERIMENTS,
+        render_phase_portraits,
+    )
+
+    exp_key = experiment.strip().lower() if experiment is not None else None
+    if series is None:
+        if act is not None and exp_key is None:
+            eff_series = "atlas"
+        elif (
+            exp_key is not None
+            and exp_key in PHASE_PORTRAIT_EXPERIMENTS
+            and exp_key not in CANONICAL_EXPERIMENTS
+        ):
+            eff_series = "phase-portraits"
+        else:
+            eff_series = "tripanels"
+    else:
+        eff_series = series.strip().lower()
+    if eff_series not in SERIES_CHOICES:
+        raise ValueError(f"Unknown series '{series}'. Choose from: {', '.join(SERIES_CHOICES)}")
+
+    if (
+        eff_series == "all"
+        and exp_key is not None
+        and exp_key != "all"
+        and exp_key not in CANONICAL_EXPERIMENTS
+        and exp_key not in PHASE_PORTRAIT_EXPERIMENTS
+    ):
+        valid = tuple(dict.fromkeys((*CANONICAL_EXPERIMENTS, *PHASE_PORTRAIT_EXPERIMENTS, "all")))
+        raise ValueError(f"Unknown experiment '{experiment}'. Choose from: {', '.join(valid)}")
+
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
-    theme_obj = get_theme(theme)
-    _, _, default_dpi = aspect_figsize(aspect, "poster")
-    actual_dpi = dpi if dpi is not None else default_dpi
-
-    exp_ids = _resolve_experiment_list(experiment)
     written: list[Path] = []
-    for exp_id in exp_ids:
-        fig = build_experiment_poster(
-            exp_id,
-            theme_name=theme,
-            aspect=aspect,
-            neural_view=neural_view,
-            dpi=actual_dpi,
+
+    if eff_series in ("tripanels", "all"):
+        if eff_series == "tripanels":
+            exp_ids = _resolve_experiment_list(exp_key or "all")
+        elif exp_key is None and act is not None:
+            exp_ids = []
+        elif exp_key in (None, "all"):
+            exp_ids = list(CANONICAL_EXPERIMENTS)
+        elif exp_key in CANONICAL_EXPERIMENTS:
+            exp_ids = [exp_key]
+        else:
+            exp_ids = []
+
+        if exp_ids:
+            theme_obj = get_theme(theme)
+            _, _, default_dpi = aspect_figsize(aspect, "poster")
+            actual_dpi = dpi if dpi is not None else default_dpi
+            for exp_id in exp_ids:
+                dest = out_path / f"{exp_id}_tripanel{suffix}.{fmt.lower()}"
+                if skip_existing and dest.exists() and dest.stat().st_size > 0:
+                    written.append(dest)
+                    continue
+                fig = build_experiment_poster(
+                    exp_id,
+                    theme_name=theme,
+                    aspect=aspect,
+                    neural_view=neural_view,
+                    dpi=actual_dpi,
+                )
+                _save_figure(fig, dest, theme_obj, actual_dpi)
+                written.append(dest)
+
+    if eff_series in ("phase-portraits", "all"):
+        pp_exp: str | None
+        if eff_series == "phase-portraits":
+            pp_exp = exp_key or "all"
+        elif exp_key is None and act is not None:
+            pp_exp = None
+        elif exp_key in (None, "all"):
+            pp_exp = "all"
+        elif exp_key in PHASE_PORTRAIT_EXPERIMENTS:
+            pp_exp = exp_key
+        else:
+            pp_exp = None
+
+        if pp_exp is not None:
+            written.extend(
+                render_phase_portraits(
+                    experiment=pp_exp,
+                    theme=theme,
+                    aspect=aspect,
+                    out_dir=out_path,
+                    dpi=dpi,
+                    fmt=fmt,
+                    suffix=suffix,
+                    skip_existing=skip_existing,
+                )
+            )
+
+    if eff_series == "atlas" or (eff_series == "all" and (act is not None or exp_key in (None, "all"))):
+        from braitenberg.dynamics.phase_atlas import render_atlas_posters
+
+        written.extend(
+            render_atlas_posters(
+                act=act or "all",
+                theme=theme,
+                aspect=aspect,
+                out_dir=out_path,
+                dpi=dpi,
+                fmt=fmt,
+                suffix=suffix,
+                skip_existing=skip_existing,
+            )
         )
-        dest = out_path / f"{exp_id}_tripanel{suffix}.{fmt.lower()}"
-        _save_figure(fig, dest, theme_obj, actual_dpi)
-        written.append(dest)
+
     return written
 
 
@@ -1315,11 +1421,32 @@ def _render_single_animation(
     dpi: int | None = None,
     mp4_subdir: Path | None = None,
     mp4_aspect_tag: bool = False,
+    skip_existing: bool = False,
 ) -> list[Path]:
+    norm_formats = tuple(str(f).strip().lower() for f in formats if str(f).strip())
+    if not norm_formats or any(f not in ("gif", "mp4") for f in norm_formats):
+        raise ValueError(f"Unsupported animation formats {tuple(formats)!r}. Choose from: gif, mp4")
+
     theme = get_theme(theme_name)
-    want_mp4 = "mp4" in formats
-    want_gif = "gif" in formats
+    want_mp4 = "mp4" in norm_formats
+    want_gif = "gif" in norm_formats
     ffmpeg_exe = _ffmpeg_bin() if want_mp4 else None
+
+    dest_dir = mp4_subdir if mp4_subdir is not None else out_dir
+    tag = f"_{aspect.replace(':', 'x')}" if mp4_aspect_tag else ""
+    expected_mp4 = (dest_dir / f"{experiment_id}{tag}.mp4") if (want_mp4 and ffmpeg_exe is not None) else None
+    expected_gif = (out_dir / f"{experiment_id}.gif") if want_gif else None
+
+    out_existing: list[Path] = []
+    if skip_existing:
+        if expected_mp4 is not None and expected_mp4.exists() and expected_mp4.stat().st_size > 0:
+            out_existing.append(expected_mp4)
+            want_mp4 = False
+        if expected_gif is not None and expected_gif.exists() and expected_gif.stat().st_size > 0:
+            out_existing.append(expected_gif)
+            want_gif = False
+        if not (want_mp4 and ffmpeg_exe is not None) and not want_gif:
+            return out_existing
 
     target_kind = "mp4" if (want_mp4 and ffmpeg_exe) else "gif"
     effective_fps = max(1, fps) if (want_mp4 and ffmpeg_exe) else min(max(1, fps), 24)
@@ -1344,10 +1471,9 @@ def _render_single_animation(
         mp4_path: Path | None = None
 
         if want_mp4 and ffmpeg_exe is not None:
-            dest_dir = mp4_subdir if mp4_subdir is not None else out_dir
             dest_dir.mkdir(parents=True, exist_ok=True)
-            tag = f"_{aspect.replace(':', 'x')}" if mp4_aspect_tag else ""
-            mp4_path = dest_dir / f"{experiment_id}{tag}.mp4"
+            mp4_path = expected_mp4
+            assert mp4_path is not None
             cmd = [
                 ffmpeg_exe,
                 "-y",
@@ -1424,17 +1550,18 @@ def _render_single_animation(
                 if mp4_path is not None:
                     written.append(mp4_path)
 
-        if want_gif and gif_frames:
-            gif_path = out_dir / f"{experiment_id}.gif"
-            _save_palette_gif(gif_frames, gif_path, gif_fps)
-            written.append(gif_path)
+        if want_gif and gif_frames and expected_gif is not None:
+            _save_palette_gif(gif_frames, expected_gif, gif_fps)
+            written.append(expected_gif)
 
-        return written
+        return out_existing + written
 
 
 def render_animations(
     *,
-    experiment: str = "all",
+    series: str | None = None,
+    experiment: str | None = None,
+    scene: str | None = None,
     neural_view: str = "composite",
     theme: str = "cosmic",
     aspect: str = "16:9",
@@ -1443,102 +1570,189 @@ def render_animations(
     out_dir: str | Path = ".",
     formats: Sequence[str] = ("gif", "mp4"),
     dpi: int | None = None,
+    skip_existing: bool = False,
 ) -> list[Path]:
-    """Render synchronized Tri-Panel animation(s) for one or all 6 canonical pure experiments."""
+    """Render synchronized animations for ``tripanels``, ``atlas``, or ``all``."""
+    norm_formats = tuple(str(f).strip().lower() for f in formats if str(f).strip())
+    if not norm_formats or any(f not in ("gif", "mp4") for f in norm_formats):
+        raise ValueError(f"Unsupported animation formats {tuple(formats)!r}. Choose from: gif, mp4")
+
+    if series is None:
+        eff_series = "atlas" if (scene is not None and experiment is None) else "tripanels"
+    else:
+        eff_series = series.strip().lower()
+    if eff_series not in ANIM_SERIES_CHOICES:
+        raise ValueError(f"Unknown animation series '{series}'. Choose from: {', '.join(ANIM_SERIES_CHOICES)}")
+
+    exp_key = experiment.strip().lower() if experiment is not None else None
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
-    exp_ids = _resolve_experiment_list(experiment)
     written: list[Path] = []
-    for exp_id in exp_ids:
+
+    if eff_series == "tripanels" or (eff_series == "all" and (exp_key is not None or scene is None)):
+        exp_ids = _resolve_experiment_list(exp_key or "all")
+        for exp_id in exp_ids:
+            written.extend(
+                _render_single_animation(
+                    exp_id,
+                    neural_view=neural_view,
+                    theme_name=theme,
+                    aspect=aspect,
+                    fps=fps,
+                    seconds=seconds,
+                    out_dir=out_path,
+                    formats=norm_formats,
+                    dpi=dpi,
+                    skip_existing=skip_existing,
+                )
+            )
+
+    if eff_series == "atlas" or (eff_series == "all" and (scene is not None or exp_key in (None, "all"))):
+        from braitenberg.dynamics.phase_atlas import render_atlas_animations
+
         written.extend(
-            _render_single_animation(
-                exp_id,
-                neural_view=neural_view,
-                theme_name=theme,
+            render_atlas_animations(
+                scene=scene or "all",
+                theme=theme,
                 aspect=aspect,
                 fps=fps,
                 seconds=seconds,
                 out_dir=out_path,
-                formats=formats,
+                formats=norm_formats,
                 dpi=dpi,
+                skip_existing=skip_existing,
             )
         )
+
     return written
+
+
+def _tripanel_experiment_complete(out_path: Path, mp4_dir: Path, exp_id: str, has_ffmpeg: bool) -> bool:
+    targets = [
+        out_path / f"{exp_id}_tripanel.png",
+        out_path / f"{exp_id}_tripanel_textbook.png",
+        out_path / f"{exp_id}.gif",
+    ]
+    if has_ffmpeg:
+        for tag in ("16x9", "1x1", "9x16"):
+            targets.append(mp4_dir / f"{exp_id}_{tag}.mp4")
+    return all(t.exists() and t.stat().st_size > 0 for t in targets)
 
 
 def render_showcase(
     *,
     out_dir: str | Path = "experiments/strogatz-dynamics/media",
+    series: str = "all",
+    skip_existing: bool = False,
     fps: int = 60,
     seconds: float = 7.0,
     neural_view: str = "composite",
 ) -> list[Path]:
-    """Generate the standardized 1-Experiment-Per-File gallery:
-    - 6 Cosmic 4K (3840×2160) Tri-Panel Posters: ``<exp>_tripanel.png``
-    - 6 Strogatz Textbook 4K Tri-Panel Posters: ``<exp>_tripanel_textbook.png``
-    - 6 GitHub README Animated GIFs (16:9): ``<exp>.gif``
-    - 18 Local 60fps H.264 MP4 Social Cuts: ``mp4/<exp>_{16x9,1x1,9x16}.mp4``
+    """Generate the standardized 3-Series gallery tree under ``<out-dir>``:
+
+    1. ``<out-dir>/`` (Series II — Pure Axiom-1 Shannon × Strogatz Tri-Panels:
+       6 Cosmic 4K PNGs, 6 Textbook 4K PNGs, 6 GIFs + ``<out-dir>/mp4/*_{16x9,1x1,9x16}.mp4``)
+    2. ``<out-dir>/phase_portraits/`` (Series I — Pure Axiom-1 4-Panel Deep Phase Portraits:
+       8 Cosmic 4K PNGs ``*_phase.png`` + 8 Textbook 4K PNGs ``*_phase_textbook.png``)
+    3. ``<out-dir>/phase_atlas/`` (Series III — Restored Round-1 Comparative Phase-Space Atlas:
+       5 Cosmic 4K PNGs, 5 Textbook 4K PNGs, 4 GIFs + ``<out-dir>/mp4/phase_atlas/*_{16x9,1x1,9x16}.mp4``)
     """
+    eff_series = series.strip().lower()
+    if eff_series not in SERIES_CHOICES:
+        raise ValueError(f"Unknown showcase series '{series}'. Choose from: {', '.join(SERIES_CHOICES)}")
+
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
     mp4_dir = out_path / "mp4"
     written: list[Path] = []
 
-    # Precompute each experiment rollout once, then render posters + GIF + 3 MP4 cuts
-    for exp_id in CANONICAL_EXPERIMENTS:
-        get_experiment_rollout(exp_id)
+    if eff_series in ("all", "tripanels"):
+        has_ffmpeg = _ffmpeg_bin() is not None
+        for exp_id in CANONICAL_EXPERIMENTS:
+            if skip_existing and _tripanel_experiment_complete(out_path, mp4_dir, exp_id, has_ffmpeg):
+                continue
+            get_experiment_rollout(exp_id)
 
-    written.extend(
-        render_posters(
-            experiment="all",
-            neural_view=neural_view,
-            theme="cosmic",
-            aspect="16:9",
-            out_dir=out_path,
-            fmt="png",
-            suffix="",
-        )
-    )
-    written.extend(
-        render_posters(
-            experiment="all",
-            neural_view=neural_view,
-            theme="textbook",
-            aspect="16:9",
-            out_dir=out_path,
-            fmt="png",
-            suffix="_textbook",
-        )
-    )
-
-    for exp_id in CANONICAL_EXPERIMENTS:
         written.extend(
-            _render_single_animation(
-                exp_id,
+            render_posters(
+                series="tripanels",
+                experiment="all",
                 neural_view=neural_view,
-                theme_name="cosmic",
+                theme="cosmic",
                 aspect="16:9",
-                fps=fps,
-                seconds=seconds,
                 out_dir=out_path,
-                formats=("gif", "mp4"),
-                mp4_subdir=mp4_dir,
-                mp4_aspect_tag=True,
+                fmt="png",
+                suffix="",
+                skip_existing=skip_existing,
             )
         )
-        for social_aspect in ("1:1", "9:16"):
+        written.extend(
+            render_posters(
+                series="tripanels",
+                experiment="all",
+                neural_view=neural_view,
+                theme="textbook",
+                aspect="16:9",
+                out_dir=out_path,
+                fmt="png",
+                suffix="_textbook",
+                skip_existing=skip_existing,
+            )
+        )
+
+        for exp_id in CANONICAL_EXPERIMENTS:
             written.extend(
                 _render_single_animation(
                     exp_id,
                     neural_view=neural_view,
                     theme_name="cosmic",
-                    aspect=social_aspect,
+                    aspect="16:9",
                     fps=fps,
                     seconds=seconds,
                     out_dir=out_path,
-                    formats=("mp4",),
+                    formats=("gif", "mp4"),
                     mp4_subdir=mp4_dir,
                     mp4_aspect_tag=True,
+                    skip_existing=skip_existing,
                 )
             )
+            for social_aspect in ("1:1", "9:16"):
+                written.extend(
+                    _render_single_animation(
+                        exp_id,
+                        neural_view=neural_view,
+                        theme_name="cosmic",
+                        aspect=social_aspect,
+                        fps=fps,
+                        seconds=seconds,
+                        out_dir=out_path,
+                        formats=("mp4",),
+                        mp4_subdir=mp4_dir,
+                        mp4_aspect_tag=True,
+                        skip_existing=skip_existing,
+                    )
+                )
+
+    if eff_series in ("all", "phase-portraits"):
+        from braitenberg.dynamics.phase_portraits import render_phase_portraits_showcase
+
+        written.extend(
+            render_phase_portraits_showcase(
+                out_dir=out_path,
+                skip_existing=skip_existing,
+            )
+        )
+
+    if eff_series in ("all", "atlas"):
+        from braitenberg.dynamics.phase_atlas import render_atlas_showcase
+
+        written.extend(
+            render_atlas_showcase(
+                out_dir=out_path,
+                fps=fps,
+                seconds=seconds,
+                skip_existing=skip_existing,
+            )
+        )
+
     return written
