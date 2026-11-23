@@ -7,7 +7,5 @@ dist/
 .venv/
 runs/
 .DS_Store
-*.mp4
-experiments/strogatz-dynamics/media/mp4/
 
 
