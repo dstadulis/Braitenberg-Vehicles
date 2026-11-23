@@ -4324,6 +4324,52 @@ function loadPreset(idx, customN = null) {
   syncControlsFromState();
   buildPresetButtons();
   markFieldDirty(false);
+  notifyParentLabState("bv-lab-state");
+}
+
+function notifyParentLabState(type = "bv-lab-state") {
+  try {
+    if (
+      typeof window !== "undefined" &&
+      window.parent &&
+      window.parent !== window &&
+      typeof window.parent.postMessage === "function"
+    ) {
+      const pr = PRESETS[state.presetIndex];
+      window.parent.postMessage(
+        {
+          type,
+          presetIndex: state.presetIndex,
+          presetId: pr ? pr.id : "",
+          theme: state.theme,
+          playing: state.playing
+        },
+        "*"
+      );
+    }
+  } catch (e) {}
+}
+
+function setExplorerTheme(nextTheme) {
+  const normalized = nextTheme === "textbook" ? "textbook" : "cosmic";
+  if (state.theme === normalized && document.documentElement.getAttribute("data-theme") === normalized) {
+    return;
+  }
+  state.theme = normalized;
+  document.documentElement.setAttribute("data-theme", state.theme);
+  document.getElementById("btnTheme").textContent = state.theme === "cosmic"
+    ? "☀ Strogatz Textbook"
+    : "🌌 Cosmic Dark";
+  bakeFTLEOffscreen();
+  notifyParentLabState("bv-lab-state");
+}
+
+function resolveExplorerPresetIndex(val) {
+  if (val === null || val === undefined || val === "") return -1;
+  const num = Number(val);
+  if (Number.isInteger(num) && num >= 0 && num < PRESETS.length) return num;
+  const clean = String(val).trim().toLowerCase();
+  return PRESETS.findIndex(p => p.id.toLowerCase() === clean);
 }
 
 function syncControlsFromState() {
@@ -4489,12 +4535,14 @@ bindSlider("slHorizon", "valHorizon", 1, v => { state.ftleHorizon = v; markField
 document.getElementById("btnPlayPause").addEventListener("click", () => {
   state.playing = !state.playing;
   document.getElementById("btnPlayPause").textContent = state.playing ? "⏸ Pause" : "▶ Play";
+  notifyParentLabState("bv-lab-state");
 });
 
 document.getElementById("btnStep").addEventListener("click", () => {
   state.playing = false;
   document.getElementById("btnPlayPause").textContent = "▶ Play";
   stepSimulation();
+  notifyParentLabState("bv-lab-state");
 });
 
 document.getElementById("btnSwarm").addEventListener("click", () => {
@@ -4505,12 +4553,7 @@ document.getElementById("btnSwarm").addEventListener("click", () => {
 document.getElementById("btnReset").addEventListener("click", () => loadPreset(state.presetIndex));
 
 document.getElementById("btnTheme").addEventListener("click", () => {
-  state.theme = state.theme === "cosmic" ? "textbook" : "cosmic";
-  document.documentElement.setAttribute("data-theme", state.theme);
-  document.getElementById("btnTheme").textContent = state.theme === "cosmic"
-    ? "☀ Strogatz Textbook"
-    : "🌌 Cosmic Dark";
-  bakeFTLEOffscreen();
+  setExplorerTheme(state.theme === "cosmic" ? "textbook" : "cosmic");
 });
 
 document.getElementById("btnToggleFTLE").addEventListener("click", () => {
@@ -4767,7 +4810,46 @@ function frameLoop() {
   requestAnimationFrame(frameLoop);
 }
 
-loadPreset(0);
+// Optional URL query/hash boot parameters & postMessage bridge for parent showcase (works on file:// & Pages)
+window.addEventListener("message", (evt) => {
+  const msg = evt && evt.data;
+  if (!msg || typeof msg !== "object" || msg.type !== "bv-lab-control") return;
+  if (msg.action === "setPreset" || (msg.action === "sync" && msg.forcePreset)) {
+    const idx = resolveExplorerPresetIndex(msg.presetIdx !== undefined ? msg.presetIdx : msg.presetId);
+    if (idx >= 0 && (msg.action === "setPreset" || idx !== state.presetIndex)) {
+      loadPreset(idx);
+    }
+  }
+  if ((msg.action === "setTheme" || msg.action === "sync" || msg.action === "setPreset") && msg.theme) {
+    setExplorerTheme(msg.theme);
+  }
+  if (msg.action === "togglePlay") {
+    document.getElementById("btnPlayPause").click();
+  } else if (msg.action === "setPlay" && typeof msg.playing === "boolean") {
+    state.playing = msg.playing;
+    document.getElementById("btnPlayPause").textContent = state.playing ? "⏸ Pause" : "▶ Play";
+    notifyParentLabState("bv-lab-state");
+  }
+});
+
+let initialPresetIndex = 0;
+let initialTheme = null;
+try {
+  if (typeof window !== "undefined" && window.location) {
+    const rawSearch = window.location.search || "";
+    const rawHash = (window.location.hash || "").replace(/^#/, "");
+    const params = new URLSearchParams(rawSearch || (rawHash.includes("=") ? rawHash : ""));
+    const reqPreset = params.get("preset") ?? params.get("experiment");
+    const resolved = resolveExplorerPresetIndex(reqPreset);
+    if (resolved >= 0) initialPresetIndex = resolved;
+    const reqTheme = (params.get("theme") || "").toLowerCase();
+    if (reqTheme === "cosmic" || reqTheme === "textbook") initialTheme = reqTheme;
+  }
+} catch (e) {}
+
+loadPreset(initialPresetIndex);
+if (initialTheme) setExplorerTheme(initialTheme);
+notifyParentLabState("bv-lab-ready");
 requestAnimationFrame(frameLoop);
 </script>
 </body>

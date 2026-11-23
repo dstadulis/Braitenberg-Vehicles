@@ -1,0 +1,118 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      pages_workflow_mode: ${{ steps.detect_pages.outputs.workflow_mode }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Assemble static site bundle
+        run: |
+          rm -rf _site
+          mkdir -p _site
+          cp index.html .nojekyll README.md _site/
+          mkdir -p _site/experiments/strogatz-dynamics
+          cp -R experiments/strogatz-dynamics/index.html \
+                experiments/strogatz-dynamics/explorer.html \
+                experiments/strogatz-dynamics/README.md \
+                experiments/strogatz-dynamics/media \
+                _site/experiments/strogatz-dynamics/
+          mkdir -p _site/specs
+          cp -R specs/images _site/specs/
+          cp specs/*.md _site/specs/
+          cp -R vehicles modules scenarios worlds _site/
+          find _site -name ".DS_Store" -delete
+
+      - name: Verify zero broken static asset paths
+        run: |
+          python3 - << 'PY'
+          import pathlib, re, sys
+
+          site = pathlib.Path("_site")
+          required = [
+              site / "index.html",
+              site / ".nojekyll",
+              site / "experiments/strogatz-dynamics/index.html",
+              site / "experiments/strogatz-dynamics/explorer.html",
+              site / "experiments/strogatz-dynamics/media/mp4/phase_atlas/daydreamer_16x9.mp4",
+          ]
+          for p in required:
+              if not p.is_file() or (p.stat().st_size == 0 and p.name != ".nojekyll"):
+                  sys.exit(f"Missing or empty required Pages file: {p}")
+
+          mp4s = list((site / "experiments/strogatz-dynamics/media/mp4").rglob("*.mp4"))
+          pngs = list((site / "experiments/strogatz-dynamics/media").rglob("*.png"))
+          gifs = list((site / "experiments/strogatz-dynamics/media").rglob("*.gif"))
+          assert len(mp4s) == 30, f"Expected 30 MP4s, found {len(mp4s)}"
+          assert len(pngs) == 38, f"Expected 38 PNGs, found {len(pngs)}"
+          assert len(gifs) == 10, f"Expected 10 GIFs, found {len(gifs)}"
+
+          raw_html = (site / "index.html").read_text(encoding="utf-8")
+          expanded = raw_html.replace("${MEDIA_ROOT}", "experiments/strogatz-dynamics/media")
+
+          rel_paths = set(re.findall(
+              r'(?:experiments/strogatz-dynamics/[A-Za-z0-9_./-]+\.(?:html|md|png|gif|mp4)|specs/(?:images/[A-Za-z0-9_./-]+\.(?:svg|png|gif)|[A-Za-z0-9_.-]+\.md)|(?:vehicles|modules|scenarios|worlds)/[A-Za-z0-9_.-]+\.yaml)',
+              expanded,
+          ))
+          for stem in re.findall(r'mp4Stem:\s*`(experiments/strogatz-dynamics/media/mp4/[A-Za-z0-9_./-]+)`', expanded):
+              for asp in ("16x9", "1x1", "9x16"):
+                  rel_paths.add(f"{stem}_{asp}.mp4")
+
+          assert len(rel_paths) >= 115, f"Expected >= 115 cataloged static asset paths in index.html, got {len(rel_paths)}"
+          missing = [rel for rel in sorted(rel_paths) if not (site / rel).is_file()]
+          if missing:
+              sys.exit(f"Broken relative paths in index.html: {missing}")
+          print(f"Verified Pages bundle: {len(mp4s)} MP4s, {len(pngs)} PNGs, {len(gifs)} GIFs, {len(rel_paths)} linked paths OK.")
+          PY
+
+      - name: Detect GitHub Pages build mode
+        id: detect_pages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          build_type="$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.build_type // ""' 2>/dev/null || true)"
+          if [ "$build_type" = "workflow" ]; then
+            echo "workflow_mode=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "workflow_mode=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Static bundle verified (78/78 media files OK). GitHub Pages build_type is '${build_type:-unconfigured}'; if Pages is set to 'Deploy from a branch: main / (root)', index.html + .nojekyll are already served directly. Set Settings -> Pages -> Source to 'GitHub Actions' to deploy via actions/deploy-pages."
+          fi
+
+      - name: Configure Pages
+        if: steps.detect_pages.outputs.workflow_mode == 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: steps.detect_pages.outputs.workflow_mode == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "_site"
+
+  deploy:
+    if: needs.build.outputs.pages_workflow_mode == 'true'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

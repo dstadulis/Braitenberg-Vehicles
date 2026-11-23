@@ -3,6 +3,8 @@ An implementation of all 14 Vehicles described in the book [Vehicles](https://en
 
 While there are many implementations of Braitenberg's Vehicles, almost all of them stop at Vehicle 4 (the simplest ones, which connect sensors directly to actuators). This repo implements all fourteen, including Vehicles 5 to 14, the ones that have a 'nervous system' between the sensors and the actuators: logic, selection, concepts, vision, shapes, ideas, rules, trains of thought, foresight and optimism. Each has a spec in [specs/](specs/), at least one scenario to run, and tests for its acceptance criteria.
 
+> **Interactive Complex Dynamics Showcase (GitHub Pages):** Stream all 30 60fps H.264 `.mp4` animations across `16:9`, `1:1` and `9:16`, inspect all 38 UHD 4K Strogatz × Shannon plates (`cosmic` & `textbook` editions), and run the live browser laboratory at **[https://dstadulis.github.io/Braitenberg-Vehicles/](https://dstadulis.github.io/Braitenberg-Vehicles/)** (or open [`index.html`](index.html) / [`experiments/strogatz-dynamics/explorer.html`](experiments/strogatz-dynamics/explorer.html) locally).
+
 ## Examples
 
 ### Vehicle 5 — A moth that learns not to get burned
@@ -254,7 +256,7 @@ A simulation is built from three kinds of YAML files: worlds (`worlds/`), vehicl
 Explorations outside the simulator, each in its own folder under `experiments/` with a README:
 
 - [A CSCG learns the traffic light](experiments/cscg/README.md): a clone-structured cognitive graph learns the sequence the Vehicle 11 cautious driver learns with Ergotrix wires, and also when each color will change.
-- [Synthetic psychology through phase space & Shannon coding](experiments/strogatz-dynamics/README.md): eight single-vehicle deep phase portraits, six Shannon × Strogatz swarm Tri-Panels, and the comparative four-act phase-space atlas (`strogatz_atlas`, `act1..4`), plus an offline interactive browser lab ([`explorer.html`](experiments/strogatz-dynamics/explorer.html)) and `python -m braitenberg.dynamics`.
+- [Synthetic psychology through phase space & Shannon coding](experiments/strogatz-dynamics/README.md): eight single-vehicle deep phase portraits, six Shannon × Strogatz swarm Tri-Panels, and the comparative four-act phase-space atlas (`strogatz_atlas`, `act1..4`), plus 30 60fps `.mp4` animations streamed at [dstadulis.github.io/Braitenberg-Vehicles](https://dstadulis.github.io/Braitenberg-Vehicles/) ([`index.html`](index.html)), an offline interactive browser lab ([`explorer.html`](experiments/strogatz-dynamics/explorer.html)), and `python -m braitenberg.dynamics`.
 
 ## Images for the specs
 

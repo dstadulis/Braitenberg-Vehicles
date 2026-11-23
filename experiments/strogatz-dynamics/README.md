@@ -390,9 +390,9 @@ flowchart LR
 
 ## Part III — Interactive Exploration & Headless Publication Studio Guide
 
-### 6.1 Standalone Tri-Panel Browser Laboratory (`explorer.html`)
+### 6.1 Complex Dynamics Showcase (`../../index.html`) & Standalone Tri-Panel Lab (`explorer.html`)
 
-Open [`explorer.html`](explorer.html) directly in any modern browser—**100% self-contained and offline-ready with zero external CDN or network dependencies**:
+Open [`../../index.html`](../../index.html) (served by GitHub Pages, streaming all 30 60fps H.264 `.mp4` animations inline alongside all 38 4K plates and the embedded live simulator) or open [`explorer.html`](explorer.html) directly in any modern browser—**100% self-contained and offline-ready with zero external CDN or network dependencies**:
 
 ```bash
 open experiments/strogatz-dynamics/explorer.html   # macOS (or double-click in any OS)
@@ -455,7 +455,7 @@ python -m braitenberg.dynamics animate --series atlas --scene ftle-swarm --aspec
 
 ## Complete Three-Series Showcase Media Index
 
-All 48 tracked 4K plates & GIFs (plus 30 gitignored 60 FPS H.264 social MP4 cuts in `16:9`, `1:1`, and `9:16`) are generated deterministically under `experiments/strogatz-dynamics/media/`:
+All 48 tracked 4K plates & GIFs (plus 30 committed 60 FPS H.264 social MP4 cuts in `16:9`, `1:1`, and `9:16`, streamed inline via [`../../index.html`](../../index.html)) are generated deterministically under `experiments/strogatz-dynamics/media/`:
 
 ### Series I — Pure Axiom-1 Deep Phase Portraits (`media/phase_portraits/` — 16 Tracked 4K Plates)
 
@@ -470,9 +470,9 @@ All 48 tracked 4K plates & GIFs (plus 30 gitignored 60 FPS H.264 social MP4 cuts
 | `v11_cautious_driver` | [`media/phase_portraits/v11_cautious_driver_phase.png`](media/phase_portraits/v11_cautious_driver_phase.png) | [`media/phase_portraits/v11_cautious_driver_phase_textbook.png`](media/phase_portraits/v11_cautious_driver_phase_textbook.png) | Ergotrix $G \to Y \to R \to G$ staircases, $(d_{\text{line}}, v)$ yellow braking, phase raster, $3\times 3$ synaptic matrix |
 | `v12_daydreamer` | [`media/phase_portraits/v12_daydreamer_phase.png`](media/phase_portraits/v12_daydreamer_phase.png) | [`media/phase_portraits/v12_daydreamer_phase_textbook.png`](media/phase_portraits/v12_daydreamer_phase_textbook.png) | Caudate criticality sweep, cortical mandala & $Z(t) = R e^{i\Phi}$, $\theta_{\text{eff}}(t)$ breathing, dark calligraphy |
 
-### Series II — Pure Axiom-1 Shannon × Strogatz Tri-Panels (`media/` — 18 Tracked Plates & GIFs + 18 Local MP4s)
+### Series II — Pure Axiom-1 Shannon × Strogatz Tri-Panels (`media/` — 18 Tracked Plates & GIFs + 18 60 FPS MP4s)
 
-| Experiment ID | Animated GIF | Cosmic Dark 4K Tri-Panel | Strogatz Textbook 4K Tri-Panel | Local 60 FPS Social Cuts |
+| Experiment ID | Animated GIF | Cosmic Dark 4K Tri-Panel | Strogatz Textbook 4K Tri-Panel | 60 FPS H.264 Social Cuts |
 |---|---|---|---|---|
 | `v9_shy` | [`media/v9_shy.gif`](media/v9_shy.gif) | [`media/v9_shy_tripanel.png`](media/v9_shy_tripanel.png) | [`media/v9_shy_tripanel_textbook.png`](media/v9_shy_tripanel_textbook.png) | `media/mp4/v9_shy_{16x9,1x1,9x16}.mp4` |
 | `v5_moth` | [`media/v5_moth.gif`](media/v5_moth.gif) | [`media/v5_moth_tripanel.png`](media/v5_moth_tripanel.png) | [`media/v5_moth_tripanel_textbook.png`](media/v5_moth_tripanel_textbook.png) | `media/mp4/v5_moth_{16x9,1x1,9x16}.mp4` |
@@ -481,7 +481,7 @@ All 48 tracked 4K plates & GIFs (plus 30 gitignored 60 FPS H.264 social MP4 cuts
 | `v12_daydreamer` | [`media/v12_daydreamer.gif`](media/v12_daydreamer.gif) | [`media/v12_daydreamer_tripanel.png`](media/v12_daydreamer_tripanel.png) | [`media/v12_daydreamer_tripanel_textbook.png`](media/v12_daydreamer_tripanel_textbook.png) | `media/mp4/v12_daydreamer_{16x9,1x1,9x16}.mp4` |
 | `v4a_orbiter` | [`media/v4a_orbiter.gif`](media/v4a_orbiter.gif) | [`media/v4a_orbiter_tripanel.png`](media/v4a_orbiter_tripanel.png) | [`media/v4a_orbiter_tripanel_textbook.png`](media/v4a_orbiter_tripanel_textbook.png) | `media/mp4/v4a_orbiter_{16x9,1x1,9x16}.mp4` |
 
-### Series III — Comparative Synthesis Phase-Space Atlas (`media/phase_atlas/` — 14 Tracked Plates & GIFs + 12 Local MP4s)
+### Series III — Comparative Synthesis Phase-Space Atlas (`media/phase_atlas/` — 14 Tracked Plates & GIFs + 12 60 FPS MP4s)
 
 | Asset | Description | Textbook Print Variant / 60 FPS MP4 Cuts |
 |---|---|---|
